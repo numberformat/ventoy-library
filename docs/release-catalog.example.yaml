@@ -1,0 +1,29 @@
+# Starter for the ChatGPT web research prompt. YYYY-MM-DD is deliberately invalid
+# until a fresh research date is supplied. No release URLs have been researched here.
+schema_version: 1
+researched_at: "YYYY-MM-DD"
+images:
+  arch: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
+  alpine: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  fedora: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  debian: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  linux-mint: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  knoppix: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  tinycore: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  systemrescue: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
+  gparted: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  clonezilla: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  rescuezilla: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  hirens: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  memtest86plus: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  kali: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  parrot: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  tails: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  opnsense: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  openwrt: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  openmediavault: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  ubuntu-server: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
+  freebsd: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  freedos: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  reactos: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  ubuntu-desktop: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}

@@ -1,0 +1,226 @@
+schema_version: 1
+researched_at: "2026-10-01"
+images:
+  arch:
+    status: builtin
+    source_page: "https://archlinux.org/download/"
+    discovery_url: "https://archlinux.org/releng/releases/"
+    notes: "Built-in Python provider discovers the current Arch Linux release at runtime; a fixed release snapshot is intentionally not stored here."
+
+  alpine:
+    status: candidate
+    source_page: "https://www.alpinelinux.org/downloads/"
+    discovery_url: "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/"
+    version: "3.24.2"
+    architecture: "x86_64"
+    filename: "alpine-standard-3.24.2-x86_64.iso"
+    url: "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/alpine-standard-3.24.2-x86_64.iso"
+    notes: "The official Alpine latest-stable x86_64 index lists 3.24.2 and this Standard bootable ISO. An authoritative SHA256 sidecar exists for the exact artifact, but its digest contents and an exact byte count were not established by the research client."
+
+  fedora:
+    status: candidate
+    source_page: "https://fedoraproject.org/workstation/download/"
+    discovery_url: "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM"
+    version: "44"
+    architecture: "x86_64"
+    filename: "Fedora-Workstation-Live-44-1.7.x86_64.iso"
+    url: null
+    notes: "Fedora's official Workstation page identifies Fedora 44 as the current stable x86_64 Workstation release and publishes the SHA256 for its Live ISO. The exact ISO filename is confirmed by current Fedora material. The download page uses Fedora's mirror-selection infrastructure, and a durable direct artifact URL could not be verified, so url remains null."
+
+  debian:
+    status: candidate
+    source_page: "https://www.debian.org/distrib/"
+    discovery_url: "https://ftp.be.debian.org/debian-cd/current/amd64/iso-cd/"
+    version: "13.7.0"
+    architecture: "x86_64"
+    filename: "debian-13.7.0-amd64-netinst.iso"
+    url: "https://ftp.be.debian.org/debian-cd/current/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso"
+    notes: "The official Debian current amd64 ISO index identifies Debian 13.7.0 and this netinst ISO. An official SHA256SUMS manifest exists in the same directory, but its digest payload was not retrieved by the research client. The index reports a rounded size; exact byte size will be resolved at runtime when available."
+
+  linux-mint:
+    status: candidate
+    source_page: "https://linuxmint.com/edition.php?id=326"
+    discovery_url: "https://mirrors.edge.kernel.org/linuxmint/stable/22.3/"
+    version: "22.3"
+    architecture: "x86_64"
+    filename: "linuxmint-22.3-cinnamon-64bit.iso"
+    url: "https://mirrors.edge.kernel.org/linuxmint/stable/22.3/linuxmint-22.3-cinnamon-64bit.iso"
+    notes: "Linux Mint's official Cinnamon edition page identifies 22.3 Zena as the current release and lists Kernel.org among its endorsed mirrors. The exact Cinnamon 64-bit ISO and SHA256 are published there. The human-readable size is rounded; exact byte size will be resolved at runtime when available."
+
+  knoppix:
+    status: candidate
+    source_page: "https://www.knopper.net/knoppix/knoppix910-en.html"
+    discovery_url: "https://www.knopper.net/knoppix-mirrors/index-en.html"
+    version: "9.1"
+    architecture: "x86_64"
+    filename: "KNOPPIX_V9.1-EN.iso"
+    url: null
+    notes: "The official KNOPPIX 9.1 documentation identifies the bootable hybrid DVD ISO and explicitly demonstrates KNOPPIX_V9.1-EN.iso. KNOPPIX directs downloads to its endorsed mirror network. No single durable mirror artifact URL, exact byte size, or SHA256/SHA512 value was verified."
+
+  tinycore:
+    status: candidate
+    source_page: "https://www.tinycorelinux.net/"
+    discovery_url: "https://www.tinycorelinux.net/17.x/x86_64/release/"
+    version: "17.0"
+    architecture: "x86_64"
+    filename: "TinyCorePure64-17.0.iso"
+    url: "https://www.tinycorelinux.net/17.x/x86_64/release/TinyCorePure64-17.0.iso"
+    notes: "The official Tiny Core 17.x x86_64 index lists TinyCorePure64 17.0 with an exact size of 42991616 bytes. Upstream supplies an MD5 sidecar but no SHA256 or SHA512 sidecar for this ISO, the runtime will install it as unverified if no supported digest is discovered."
+
+  systemrescue:
+    status: builtin
+    source_page: "https://www.system-rescue.org/Download/"
+    discovery_url: "https://www.system-rescue.org/Download/"
+    notes: "Built-in Python provider discovers the current stable SystemRescue release at runtime; a fixed release snapshot is intentionally not stored here."
+
+  gparted:
+    status: candidate
+    source_page: "https://gparted.org/download.php"
+    discovery_url: "https://sourceforge.net/projects/gparted/files/gparted-live-stable/1.8.1-6/"
+    version: "1.8.1-6"
+    architecture: "x86_64"
+    filename: "gparted-live-1.8.1-6-amd64.iso"
+    url: "https://sourceforge.net/projects/gparted/files/gparted-live-stable/1.8.1-6/gparted-live-1.8.1-6-amd64.iso/download"
+    notes: "GParted's official project directs downloads to its SourceForge project. The stable 1.8.1-6 directory provides the bootable amd64 ISO and publishes matching SHA256 and SHA512 values in its release README. SourceForge reports only a rounded display size; exact byte size will be resolved at runtime when available."
+
+  clonezilla:
+    status: candidate
+    source_page: "https://clonezilla.org/downloads.php"
+    discovery_url: "https://sourceforge.net/projects/clonezilla/files/clonezilla_live_stable/3.3.3-37/"
+    version: "3.3.3-37"
+    architecture: "x86_64"
+    filename: "clonezilla-live-3.3.3-37-amd64.iso"
+    url: "https://sourceforge.net/projects/clonezilla/files/clonezilla_live_stable/3.3.3-37/clonezilla-live-3.3.3-37-amd64.iso/download"
+    notes: "Clonezilla's current stable directory is 3.3.3-37. The project-endorsed SourceForge distribution contains the amd64 bootable ISO, and Clonezilla's official checksum page publishes the exact SHA256 digest. SourceForge exposes a rounded size rather than exact bytes."
+
+  rescuezilla:
+    status: candidate
+    source_page: "https://github.com/rescuezilla/rescuezilla/releases/tag/2.6.2"
+    discovery_url: "https://github.com/rescuezilla/rescuezilla/releases/latest"
+    version: "2.6.2"
+    architecture: "x86_64"
+    filename: "rescuezilla-2.6.2-64bit.resolute.iso"
+    url: "https://github.com/rescuezilla/rescuezilla/releases/download/2.6.2/rescuezilla-2.6.2-64bit.resolute.iso"
+    notes: "The official Rescuezilla GitHub release marks v2.6.2 as Latest and explicitly identifies rescuezilla-2.6.2-64bit.resolute.iso as the primary 64-bit image. GitHub's asset metadata was not available to the research client for exact size or checksum extraction."
+
+  hirens:
+    status: candidate
+    source_page: "https://www.hirensbootcd.org/download/"
+    discovery_url: "https://www.hirensbootcd.org/download/"
+    version: "1.0.8"
+    architecture: "x86_64"
+    filename: "HBCD_PE_x64.iso"
+    url: "https://www.hirensbootcd.org/files/HBCD_PE_x64.iso"
+    notes: "Hiren's official download page identifies BootCD PE 1.0.8, supplies the project download URL, exact byte size, and SHA256. The project URL redirects to its selected external file host, which is allowed under the relaxed mirror policy."
+
+  memtest86plus:
+    status: manual
+    source_page: "https://memtest.org/"
+    discovery_url: "https://memtest.org/download/v8.10/sha256sum.txt"
+    version: "8.10"
+    architecture: "x86_64"
+    filename: "mt86plus_8.10_x86_64.iso.zip"
+    url: "https://memtest.org/download/v8.10/mt86plus_8.10_x86_64.iso.zip"
+    notes: "Memtest86+ 8.10 is the current stable release and upstream provides the x86_64 ISO package and SHA256. The selected upstream artifact is a ZIP containing the bootable ISO rather than a directly bootable ISO itself, so extraction support would be required before this can be an automatic candidate."
+
+  kali:
+    status: candidate
+    source_page: "https://www.kali.org/get-kali/"
+    discovery_url: "https://cdimage.kali.org/current/"
+    version: "2026.2"
+    architecture: "x86_64"
+    filename: "kali-linux-2026.2-live-amd64.iso"
+    url: "https://cdimage.kali.org/current/kali-linux-2026.2-live-amd64.iso"
+    notes: "Kali's official downloads page recommends the current tested point release rather than weekly images. The official verification documentation explicitly identifies kali-linux-2026.2-live-amd64.iso and its SHA256. No exact byte size was established."
+
+  parrot:
+    status: candidate
+    source_page: "https://parrotsec.org/download/"
+    discovery_url: "https://deb.parrot.sh/parrot/iso/7.3/"
+    version: "7.3"
+    architecture: "x86_64"
+    filename: "Parrot-security-7.3_amd64.iso"
+    url: "https://deb.parrot.sh/parrot/iso/7.3/Parrot-security-7.3_amd64.iso"
+    notes: "Parrot's official download infrastructure identifies 7.3 and provides the Security Edition amd64 ISO. Exact byte size and authoritative SHA256/SHA512 contents for the selected artifact were not established in this research pass."
+
+  tails:
+    status: candidate
+    source_page: "https://tails.net/install/download-iso/"
+    discovery_url: "https://tails.net/install/v2/Tails/amd64/stable/latest.json"
+    version: "7.14"
+    architecture: "x86_64"
+    filename: "tails-amd64-7.14.iso"
+    url: "https://download.tails.net/tails/stable/tails-amd64-7.14/tails-amd64-7.14.iso"
+    notes: "Tails' official stable-release JSON identifies 7.14 and supplies the exact amd64 ISO URL, exact byte size, and SHA256 digest."
+
+  opnsense:
+    status: manual
+    source_page: "https://opnsense.org/download/"
+    discovery_url: "https://pkg.opnsense.org/releases/mirror/"
+    version: "26.7"
+    architecture: "x86_64"
+    filename: "OPNsense-26.7-dvd-amd64.iso.bz2"
+    url: "https://pkg.opnsense.org/releases/mirror/OPNsense-26.7-dvd-amd64.iso.bz2"
+    notes: "OPNsense 26.7 is the current release and upstream publishes this amd64 DVD installer package and SHA256. The downloadable artifact is a bzip2-compressed ISO, not the directly bootable ISO itself. It remains manual unless ventoy-library gains decompression support."
+
+  openwrt:
+    status: manual
+    source_page: "https://openwrt.org/downloads"
+    discovery_url: "https://downloads.openwrt.org/releases/25.12.5/targets/x86/64/"
+    version: "25.12.5"
+    architecture: "x86_64"
+    filename: "openwrt-25.12.5-x86-64-generic-ext4-combined-efi.img.gz"
+    url: "https://downloads.openwrt.org/releases/25.12.5/targets/x86/64/openwrt-25.12.5-x86-64-generic-ext4-combined-efi.img.gz"
+    notes: "The official OpenWrt x86/64 release index identifies 25.12.5 and publishes the generic EFI ext4 combined disk image and SHA256. The image is distributed gzip-compressed, so the selected downloadable artifact is not itself directly bootable by conventional means and remains manual unless decompression is supported."
+
+  openmediavault:
+    status: candidate
+    source_page: "https://www.openmediavault.org/download.html"
+    discovery_url: "https://sourceforge.net/projects/openmediavault/files/iso/8.3.1/"
+    version: "8.3.1"
+    architecture: "x86_64"
+    filename: "openmediavault_8.3.1-amd64.iso"
+    url: "https://sourceforge.net/projects/openmediavault/files/iso/8.3.1/openmediavault_8.3.1-amd64.iso/download"
+    notes: "OpenMediaVault's project-endorsed SourceForge distribution identifies 8.3.1 as the latest amd64 ISO and publishes a matching SHA256 sidecar. The digest payload and exact byte size were not retrieved reliably, so those fields remain null."
+
+  ubuntu-server:
+    status: builtin
+    source_page: "https://ubuntu.com/download/server"
+    discovery_url: "https://releases.ubuntu.com/"
+    notes: "Built-in Python provider discovers the current stable Ubuntu Server LTS release and artifact at runtime; a fixed LTS snapshot is intentionally not stored here."
+
+  freebsd:
+    status: candidate
+    source_page: "https://www.freebsd.org/where/"
+    discovery_url: "https://download.freebsd.org/releases/amd64/amd64/ISO-IMAGES/15.1/"
+    version: "15.1"
+    architecture: "x86_64"
+    filename: "FreeBSD-15.1-RELEASE-amd64-disc1.iso"
+    url: "https://download.freebsd.org/releases/amd64/amd64/ISO-IMAGES/15.1/FreeBSD-15.1-RELEASE-amd64-disc1.iso"
+    notes: "FreeBSD's official amd64 release index identifies 15.1-RELEASE and lists this disc1 ISO with an exact size of 1352255488 bytes. Official SHA256 and SHA512 manifests are present, but their digest contents were not retrieved by the research client."
+
+  freedos:
+    status: manual
+    source_page: "https://freedos.org/download/"
+    discovery_url: "https://freedos.org/download/verify.txt"
+    version: "1.4"
+    architecture: "x86"
+    filename: "FD14-LiveCD.zip"
+    url: "https://download.freedos.org/1.4/FD14-LiveCD.zip"
+    notes: "FreeDOS 1.4 is the current production release. Upstream's LiveCD package has an authoritative SHA256, but the downloadable artifact is a ZIP containing FD14LIVE.iso rather than the directly bootable ISO. The newer T2609 distribution is explicitly a test release and is not preferred over 1.4."
+
+  reactos:
+    status: manual
+    source_page: "https://reactos.org/project-news/reactos-0416-released/"
+    discovery_url: "https://sourceforge.net/projects/reactos/files/ReactOS/0.4.16/"
+    version: "0.4.16"
+    architecture: "x86"
+    filename: "ReactOS-0.4.16-i386.zip"
+    url: "https://sourceforge.net/projects/reactos/files/ReactOS/0.4.16/ReactOS-0.4.16-i386.zip/download"
+    notes: "ReactOS 0.4.16 is the current project release and remains explicitly Alpha. The relaxed maturity policy permits it, but the upstream-endorsed SourceForge artifact is a ZIP containing the unified boot/install/live image rather than a directly bootable ISO. It therefore remains manual unless archive extraction is supported."
+
+  ubuntu-desktop:
+    status: builtin
+    source_page: "https://ubuntu.com/download/desktop"
+    discovery_url: "https://releases.ubuntu.com/"
+    notes: "Built-in Python provider discovers the current stable Ubuntu Desktop LTS release and artifact at runtime; a fixed LTS snapshot is intentionally not stored here."
