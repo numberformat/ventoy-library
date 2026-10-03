@@ -1,6 +1,7 @@
-"""Offline numbered presentation and deterministic selection parsing."""
+"""Numbered presentation and deterministic selection parsing."""
 
 import re
+from datetime import datetime
 
 from .errors import LibraryError
 from .models import ManagedImage
@@ -29,12 +30,20 @@ def select_numbers(value: str, providers: list[Provider]) -> list[Provider]:
 
 
 def show_catalog(
-    providers: list[Provider], images: list[ManagedImage], names: list[str] | None = None
+    providers: list[Provider],
+    images: list[ManagedImage],
+    names: list[str] | None = None,
+    visible_names: set[str] | None = None,
 ) -> None:
     latest = {i.provider: i for i in images}
-    print("  #  IMAGE                      CATEGORY   ARCH     ACQUISITION  INSTALLED")
+    print(
+        "  #  IMAGE                      CATEGORY   ARCH     ACQUISITION  "
+        "VERSION      INSTALLED    DATE"
+    )
     for number, provider in enumerate(providers, 1):
         if names and provider.name not in names:
+            continue
+        if visible_names is not None and provider.name not in visible_names:
             continue
         previous = latest.get(provider.name)
         mode = (
@@ -44,21 +53,50 @@ def show_catalog(
             if getattr(provider, "manual", False)
             else "automatic"
         )
-        version = previous.version if previous else "-"
+        snapshot = getattr(provider, "release", None)
+        version = (
+            snapshot.version
+            if snapshot
+            else getattr(provider, "catalog_version", None)
+            or (previous.version if previous else "-")
+        )
+        installed_date = _display_date(previous.download_timestamp) if previous else "-"
+        catalog_date = getattr(provider, "researched_at", None)
+        date_value = (
+            installed_date if previous else catalog_date.isoformat() if catalog_date else "-"
+        )
         print(
             f"{number:3}  {provider.display_name:26} {provider.category:10} "
-            f"{provider.architecture:8} {mode:12} {version}"
+            f"{provider.architecture:8} {mode:12} {version:12} "
+            f"{previous.version if previous else '-':12} {date_value}"
         )
-    print("\n  0  All images")
+    print("\n  0  All available images" if visible_names is not None else "\n  0  All images")
+    print("Date: download date for installed images; catalog research date otherwise.")
 
 
-def prompt_selection(providers: list[Provider], images: list[ManagedImage]) -> list[Provider]:
-    show_catalog(providers, images)
+def _display_date(value: str) -> str:
+    """Format a managed image timestamp as a compact local-independent date."""
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).date().isoformat()
+    except ValueError:
+        return value[:10] if len(value) >= 10 else value
+
+
+def prompt_selection(
+    providers: list[Provider], images: list[ManagedImage], visible_names: set[str] | None = None
+) -> list[Provider]:
+    show_catalog(providers, images, visible_names=visible_names)
     while True:
         value = input("Choose images (e.g. 1,3,9-11; 0 = all; q = cancel): ").strip()
         if value.lower() in {"q", "quit", "cancel"}:
             return []
         try:
-            return select_numbers(value, providers)
+            selected = select_numbers(value, providers)
+            if visible_names is not None:
+                if value.strip().lower() in {"0", "all"}:
+                    return [provider for provider in selected if provider.name in visible_names]
+                if any(provider.name not in visible_names for provider in selected):
+                    raise LibraryError("Choose only numbers shown in the catalog.")
+            return selected
         except LibraryError as exc:
             print(f"{exc} Please try again.")

@@ -65,10 +65,8 @@ def contained(root: Path, relative: str | Path) -> Path:
     return path
 
 
-def image_path(root: Path, category: str, provider: str, filename: str) -> Path:
-    return contained(
-        root, Path("ISO") / component(category) / component(provider) / component(filename)
-    )
+def image_path(root: Path, filename: str) -> Path:
+    return contained(root, Path("ISO") / component(filename))
 
 
 def open_regular(path: Path, flags: int):

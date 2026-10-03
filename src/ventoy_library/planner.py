@@ -22,6 +22,7 @@ def build_plan(
     if unknown:
         raise LibraryError(f"Overrides refer to unselected providers: {', '.join(sorted(unknown))}")
     items = []
+    claimed_targets: set[str] = set()
     for provider in providers:
         previous = next((i for i in reversed(installed) if i.provider == provider.name), None)
         try:
@@ -35,7 +36,16 @@ def build_plan(
                 or release.architecture != provider.architecture
             ):
                 raise LibraryError("Provider returned mismatched release identity.")
-            target = image_path(root, release.category, release.provider, release.filename)
+            target = image_path(root, release.filename)
+            if any(
+                image.provider != provider.name
+                and Path(image.relative_path).parent == Path("ISO")
+                and image.filename.casefold() == release.filename.casefold()
+                for image in installed
+            ):
+                raise LibraryError("Top-level filename is tracked by another provider.")
+            if target.name.casefold() in claimed_targets:
+                raise LibraryError("Another selected provider uses the same ISO filename.")
             source = overrides.get(provider.name, release.url)
             method = AcquisitionMethod.AUTOMATIC
             if provider.name in overrides:
@@ -67,19 +77,32 @@ def build_plan(
                     and previous.checksum_algorithm == release.checksum_algorithm
                     and (release.size is None or old_path.stat().st_size == release.size)
                 )
-            action = (
-                Action.CURRENT
-                if current
-                else Action.MANUAL
-                if source is None
-                else Action.UPDATE
-                if previous
-                else Action.DOWNLOAD
-            )
-            # No overwrite, even for an upstream that reuses a filename. Phase 2 may add
-            # version-qualified destinations; for now fail closed and keep the old file.
-            if not current and target.exists():
-                raise LibraryError("Target already exists; refusing to overwrite an existing file.")
+            if current:
+                action = Action.CURRENT if old_path == target else Action.RELOCATE
+            elif target.exists():
+                if (
+                    not target.is_file()
+                    or release.checksum is None
+                    or provider.name in overrides
+                    or (previous and previous.relative_path == target.relative_to(root).as_posix())
+                ):
+                    raise LibraryError(
+                        "Top-level target exists; a matching upstream checksum is required "
+                        "to adopt it safely."
+                    )
+                if release.size is not None and target.stat().st_size != release.size:
+                    raise LibraryError("Existing top-level image has the wrong size.")
+                action = Action.ADOPT
+            else:
+                action = (
+                    Action.MANUAL
+                    if source is None
+                    else Action.UPDATE
+                    if previous
+                    else Action.DOWNLOAD
+                )
+            if action != Action.MANUAL:
+                claimed_targets.add(target.name.casefold())
             items.append(
                 PlannedDownload(provider.name, release, target, action, previous, source, method)
             )

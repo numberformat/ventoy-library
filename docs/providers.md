@@ -56,21 +56,34 @@ normal test runs cannot access the network.
 - Both variants have their own provider IDs, destination directories and state records.
   Desktop is included as catalog entry 24.
 
+## New runtime providers
+
+- **Alpine:** [latest-stable x86_64 index](https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/); newest numeric Standard ISO, matching SHA256 sidecar and HEAD size.
+- **Debian:** [current amd64 ISO index](https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/); newest netinst ISO, SHA256SUMS and HEAD size. The catalog label remains Debian Live for compatibility, though this selected image is an installer.
+- **GParted:** [official download page](https://gparted.org/download.php); current stable amd64 SourceForge URL advertised there, [official checksum manifest](https://gparted.org/gparted-live/stable/CHECKSUMS.TXT) and HEAD size.
+- **Clonezilla:** [project-endorsed SourceForge stable directory](https://sourceforge.net/projects/clonezilla/files/clonezilla_live_stable/); newest Debian-based amd64 ISO and HEAD size. Its [official download page](https://clonezilla.org/downloads.php) and checksum endpoint currently return a browser challenge to this client, so checksum verification is unavailable and the image is explicitly unverified.
+- **Rescuezilla:** [official GitHub Releases API](https://api.github.com/repos/rescuezilla/rescuezilla/releases); newest stable release, primary 64-bit ISO named in its release notes, exact asset size and SHA256SUM when published. Other codename variants are excluded.
+- **Kali:** [current image index](https://cdimage.kali.org/current/); newest live amd64 ISO, SHA256SUMS and HEAD size. On 2026-10-02 the official index listed only the live ISO torrent, not the ISO itself. Discovery reports this explicitly and fails until upstream restores a direct ISO; it does not substitute an installer or development image.
+- **Tails:** [stable update JSON](https://tails.net/install/v2/Tails/amd64/stable/latest.json); amd64 ISO, exact size and SHA256 directly from the structured metadata.
+- **FreeBSD:** [amd64 release index](https://download.freebsd.org/releases/amd64/amd64/ISO-IMAGES/); newest directory with a production RELEASE disc1 ISO, official SHA256 manifest and HEAD size. Beta/RC-only directories are skipped.
+
+All metadata reads are capped at 2 MiB. These adapters validate advertised hosts,
+paths, architectures and artifact names. A missing required artifact or malformed
+metadata fails discovery; no fixed YAML version is used as a fallback.
+
 ## Remaining catalog entries
 
-Alpine, Fedora Workstation, Debian Live, Linux Mint, Knoppix, Tiny Core, GParted,
-Clonezilla, Rescuezilla, Hiren's BootCD PE, Memtest86+, Kali, Parrot, Tails,
-OPNsense, OpenWrt, OpenMediaVault, FreeBSD, FreeDOS, ReactOS do not have implemented
-upstream discovery adapters. Their names/categories come from the requested catalog
-in `AGENTS.md`. No upstream URLs, current release versions or checksum claims are
-invented for them. Upstream-specific research is required before adding automation.
+Fedora Workstation, Linux Mint, Knoppix, Tiny Core, Hiren's BootCD PE, Parrot,
+OpenMediaVault, Memtest86+, OPNsense, OpenWrt, FreeDOS and ReactOS have no runtime
+upstream discovery adapter yet. Candidate snapshots and manual entries continue to
+work according to their catalog status.
 
 The [YAML release refresh workflow](release-refresh-prompt.md) lets a maintainer
 refresh official source details and prepare a candidate snapshot. The YAML ships
 inside the package and loads automatically. Candidate records with release identity
 are usable download sources. Manual records remain available for explicit user-supplied
 files or URLs.
-The four built-in providers continue to discover releases at runtime.
+The twelve built-in providers discover releases at runtime.
 
 The shared manual acquisition adapter supports explicit local files and direct HTTP(S)
 URLs. Users must obtain an appropriate bootable artifact from its official upstream.
@@ -87,8 +100,10 @@ silently reported as successfully downloaded.
 
 ## Numeric selection
 
-`catalog.py` defines the stable display order. `list` shows all choices offline,
-including automatic/manual acquisition status and installed versions when available.
+`catalog.py` defines the stable display order. `list` checks links with HEAD and shows
+only entries whose link passed, using a three-day cache. It includes acquisition status
+and installed versions when available. Use `list --refresh-links` to recheck now.
 `add` and `update-images` accept an interactive choice, `--select 1,8,20,24`, or `--all`.
-`0` means all in the chooser or `--select`; `q` cancels. Filtered `list --only` output
+`0` means all shown entries in the chooser; `--select 0` explicitly chooses the full
+catalog. `q` cancels. Filtered `list --only` output
 retains global catalog numbers. Local overrides can use numeric keys, e.g. `--local 13=PATH`.

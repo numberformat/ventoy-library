@@ -79,8 +79,8 @@ For projects without reliable live discovery, the
    official discovery is unreliable. The [ChatGPT research prompt](release-refresh-prompt.md)
    can help prepare a sourced YAML snapshot for human review during periodic refreshes.
 5. **Smoke-test application self-update after a stable release exists.** Confirm
-   the published GitHub tag and pipx Git installation flow end to end. The project is
-   currently unreleased, so this test cannot yet use the public release channel.
+   the published GitHub tag and pipx Git installation flow end to end. Also verify
+   repeat installation through NOAMi Installer using the attached wheel.
 
 No real multi-gigabyte images are needed for these tasks; network and transfer tests
 should continue to use mocked responses and small fixtures.

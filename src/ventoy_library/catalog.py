@@ -38,4 +38,7 @@ CATALOG = (
     CatalogEntry("ubuntu-desktop", "Ubuntu Desktop LTS", "desktop"),
 )
 
-BUILTIN_PROVIDER_NAMES = frozenset({"arch", "systemrescue", "ubuntu-server", "ubuntu-desktop"})
+BUILTIN_PROVIDER_NAMES = frozenset({
+    "arch", "alpine", "debian", "systemrescue", "gparted", "clonezilla",
+    "rescuezilla", "kali", "tails", "ubuntu-server", "freebsd", "ubuntu-desktop",
+})

@@ -24,19 +24,21 @@ class StateStore:
         if not isinstance(image.relative_path, str):
             raise StateError("State paths must be strings.")
         parts = Path(image.relative_path).parts
-        if (
-            len(parts) != 4
-            or parts[0] != "ISO"
-            or parts[2] != image.provider
-            or parts[3] != image.filename
-        ):
-            raise StateError("State image is outside its provider directory.")
+        flat = len(parts) == 2 and parts == ("ISO", image.filename)
+        legacy = (
+            len(parts) == 4
+            and parts[0] == "ISO"
+            and parts[2] == image.provider
+            and parts[3] == image.filename
+        )
+        if not (flat or legacy):
+            raise StateError("State image is outside the supported ISO layout.")
         contained(self.root, image.relative_path)
         Release(
             image.provider,
             image.display_name,
             image.version,
-            parts[1],
+            parts[1] if legacy else "flat",
             "unknown",
             image.filename,
             image.source_url,
@@ -70,9 +72,9 @@ class StateStore:
                 raise  # Never fall back around a path-safety violation.
             except (LibraryError, ValueError, TypeError) as exc:
                 raise StateError("Invalid state image metadata.") from exc
-            if image.relative_path in seen:
+            if image.relative_path.casefold() in seen:
                 raise StateError("Duplicate state path.")
-            seen.add(image.relative_path)
+            seen.add(image.relative_path.casefold())
         return images
 
     def load(self) -> list[ManagedImage]:
@@ -94,7 +96,7 @@ class StateStore:
     def save(self, images: list[ManagedImage]) -> None:
         for image in images:
             self.validate(image)
-        if len({i.relative_path for i in images}) != len(images):
+        if len({i.relative_path.casefold() for i in images}) != len(images):
             raise StateError("Duplicate state path.")
         previous = self.load()
         path = self._path()

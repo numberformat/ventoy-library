@@ -4,26 +4,26 @@ schema_version: 1
 researched_at: "YYYY-MM-DD"
 images:
   arch: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
-  alpine: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  alpine: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
   fedora: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
-  debian: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  debian: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
   linux-mint: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
   knoppix: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
   tinycore: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
   systemrescue: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
-  gparted: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
-  clonezilla: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
-  rescuezilla: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  gparted: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
+  clonezilla: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
+  rescuezilla: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
   hirens: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
   memtest86plus: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
-  kali: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  kali: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
   parrot: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
-  tails: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  tails: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
   opnsense: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
   openwrt: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
   openmediavault: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
   ubuntu-server: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
-  freebsd: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
+  freebsd: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}
   freedos: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
   reactos: {status: manual, source_page: null, discovery_url: null, notes: "Research pending."}
   ubuntu-desktop: {status: builtin, source_page: null, discovery_url: null, notes: "Built-in discovery."}

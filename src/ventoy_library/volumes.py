@@ -38,6 +38,24 @@ class Volume:
     filesystem: str
     mountpoint: Path | None
     readonly: bool = False
+    partition_type: str = ""
+    partition_scheme: str = ""
+    size: int | None = None
+    external: bool = False
+
+
+def ventoy_boot_partition(volume: Volume) -> bool:
+    """Recognize the labelled EFI partition or macOS's unlabeled MBR view of it."""
+    if volume.number != 2:
+        return False
+    if volume.label.upper() == "VTOYEFI" and volume.filesystem in FAT_FILESYSTEMS:
+        return True
+    return (
+        volume.partition_scheme == "FDisk_partition_scheme"
+        and volume.partition_type.upper() == "0XEF"
+        and volume.size == 32 * 1024**2
+        and volume.external
+    )
 
 
 @dataclass(frozen=True)
@@ -47,11 +65,7 @@ class Inventory:
 
     @property
     def detected(self) -> tuple[Volume, ...]:
-        boot_disks = {
-            v.disk
-            for v in self.volumes
-            if v.number == 2 and v.label.upper() == "VTOYEFI" and v.filesystem in FAT_FILESYSTEMS
-        }
+        boot_disks = {v.disk for v in self.volumes if ventoy_boot_partition(v)}
         return tuple(
             v
             for v in self.volumes
@@ -97,6 +111,10 @@ def macos_inventory(data: dict, info) -> Inventory:
                     bool(
                         details.get("ReadOnlyVolume", False) or details.get("ReadOnlyMedia", False)
                     ),
+                    details.get("Content", partition.get("Content", "")),
+                    disk.get("Content", ""),
+                    details.get("Size", partition.get("Size")),
+                    bool(details.get("RemovableMediaOrExternalDevice", False)),
                 )
             )
     return Inventory(tuple(volumes))

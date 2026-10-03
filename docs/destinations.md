@@ -8,10 +8,14 @@ devices. A directory named Ventoy is not proof of an installation.
 The candidate is a writable, mounted first partition on a disk whose second FAT
 partition is labelled `VTOYEFI`, following the official
 [Ventoy disk layout](https://www.ventoy.net/en/doc_disk_layout.html).
+On macOS, `diskutil` may report an unmounted Ventoy EFI partition without its FAT
+filesystem or label. In that case the detector also accepts an external MBR disk
+whose second partition is exactly 32 MiB with partition type `0xEF`.
 The data partition can have any label. Supported filesystem metadata includes exFAT,
 NTFS, FAT, ext2/3/4, XFS and UDF. Read-only and unsupported filesystems are refused.
 
-- macOS: read-only `diskutil list -plist` and `diskutil info -plist` metadata.
+- macOS: read-only `diskutil list -plist` and `diskutil info -plist` metadata,
+  including the unlabeled EFI-partition layout described above.
 - Linux: `/sys/class/block`, `/run/udev/data`, and `/proc/self/mountinfo`. No block
   device is opened. Missing udev information can prevent automatic identification.
   Subtree bind mounts do not qualify as the data-partition root.
@@ -25,9 +29,13 @@ known non-first partitions, and the system filesystem root remain forbidden. The
 application does not mount drives or save fallback confirmation. A manually confirmed
 installation must be confirmed again if subsequent automatic detection still fails.
 
-One detected drive is automatically selected when no destination is configured.
-Multiple drives produce numeric choices. A configured destination takes precedence;
-a missing or unrecognized configured path prompts in interactive mode. Noninteractive
+The current directory is checked first when no `--destination` was supplied. If it is
+on a detected Ventoy data partition, that partition's mount root is used without a
+prompt, including when the current directory is a subfolder. An explicit
+`--destination` takes precedence, followed by a valid saved destination. The app scans
+all mounted partitions on Linux and Windows before prompting. One detected drive is
+automatically selected even when a saved path is stale; multiple drives produce numeric
+choices. An unrecognized explicit path prompts in interactive mode. Noninteractive
 use fails when the target cannot be identified. `list` needs no drive or prompt.
 
 ## Menu visibility checks

@@ -143,7 +143,8 @@ def update_command(release: AppRelease) -> list[str]:
         )
     if kind != "pipx":
         raise LibraryError(
-            "Automatic updates require an unsuffixed, unpinned pipx Git installation."
+            "Automatic --update requires an unsuffixed, unpinned pipx Git installation. "
+            "For a NOAMi Installer wheel installation, rerun the installer instead."
         )
     executable = shutil.which("pipx")
     if not executable:

@@ -1,0 +1,85 @@
+name: release wheel
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check release tag
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import sys
+
+          sys.path.insert(0, 'src')
+          from ventoy_library.metadata import __version__
+
+          tag = os.environ['GITHUB_REF_NAME']
+          if not re.fullmatch(r'v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)', tag):
+              raise SystemExit(f'Release tag must be stable SemVer: {tag}')
+          if tag != f'v{__version__}':
+              raise SystemExit(f'Tag {tag} does not match package version {__version__}')
+          PY
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build --wheel --outdir dist
+      - name: Check installer artifact
+        run: |
+          python - <<'PY'
+          import email
+          import os
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          tag = os.environ['GITHUB_REF_NAME']
+          wheels = list(Path('dist').glob('*.whl'))
+          if len(wheels) != 1:
+              raise SystemExit(f'Expected exactly one wheel, found {len(wheels)}')
+          wheel = wheels[0]
+          if wheel.name != f'ventoy_library-{tag[1:]}-py3-none-any.whl':
+              raise SystemExit(f'Unexpected wheel filename: {wheel.name}')
+          with ZipFile(wheel) as archive:
+              names = set(archive.namelist())
+              required = {
+                  'ventoy_library/__init__.py',
+                  'ventoy_library/__main__.py',
+                  'ventoy_library/releases.yaml',
+                  f'ventoy_library-{tag[1:]}.dist-info/entry_points.txt',
+              }
+              if missing := required - names:
+                  raise SystemExit(f'Wheel is missing: {sorted(missing)}')
+              metadata = email.message_from_bytes(
+                  archive.read(f'ventoy_library-{tag[1:]}.dist-info/METADATA')
+              )
+              if metadata['Name'] != 'ventoy-library' or metadata['Version'] != tag[1:]:
+                  raise SystemExit('Wheel metadata does not match the release tag')
+              if metadata['Requires-Python'] != '>=3.11':
+                  raise SystemExit('Wheel has unexpected Python requirements')
+              entry_points = archive.read(
+                  f'ventoy_library-{tag[1:]}.dist-info/entry_points.txt'
+              )
+              if b'ventoy-library = ventoy_library.cli:main' not in entry_points:
+                  raise SystemExit('Wheel is missing the ventoy-library command')
+          PY
+      - name: Publish GitHub Release with one wheel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          wheel=(dist/*.whl)
+          gh release create "$GITHUB_REF_NAME" "${wheel[0]}" \
+            --verify-tag --generate-notes --title "$GITHUB_REF_NAME"

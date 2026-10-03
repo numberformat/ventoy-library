@@ -5,24 +5,24 @@ and server images on a Ventoy data partition **or any ordinary directory**.
 This independent project is not affiliated with Ventoy or any supported operating-system project.
 It never installs or updates Ventoy, formats a drive, or accesses raw block devices.
 
-**Status: version 0.1.0 (unreleased).** Browse a numbered catalog of 24 images,
-choose a few or all, then review the complete storage plan before downloading.
-Arch Linux, SystemRescue, Ubuntu Server LTS and Ubuntu Desktop LTS have automatic
-release discovery and SHA256 verification. Other entries accept a user-supplied
-local image or URL by default; candidate YAML release snapshots can also supply
-download URLs for them.
+**Version 0.1.0.** Browse the available images in a numbered
+24-image catalog, choose a few or all, then review the storage plan before downloading.
+Twelve providers discover releases at runtime. Most have SHA256 manifests; Clonezilla
+currently installs as unverified because its official checksum endpoint blocks automated
+requests. Other entries accept a user-supplied local image or URL; candidate YAML
+release snapshots can also supply download URLs for them.
 See the [project status and roadmap](docs/roadmap.md) for completed milestones and
 the next development steps.
 For periodic manual research, use the [ChatGPT web research prompt](docs/release-refresh-prompt.md)
 to produce a sourced YAML snapshot of current official image URLs. Verify each candidate
-entry before publishing it; the four built-in providers already discover releases at runtime.
+entry before publishing it; the twelve built-in providers already discover releases at runtime.
 
 ## Features and scope
 
 Implemented core capabilities:
 
-- Full numbered image catalog, multi-selection, ranges, and an all-images choice.
-- Latest stable release discovery for four automatic providers.
+- Numbered image catalog filtered by checked links, with multi-selection and ranges.
+- Latest stable release discovery for twelve automatic providers.
 - Bundled YAML release catalog for periodically refreshed image URLs.
 - Complete-plan storage capacity checking and total download-size calculation.
 - Byte-based overall and per-file progress; unknown totals never produce an exact percentage.
@@ -41,20 +41,51 @@ recognized checksum-backed partials.
 
 ## Requirements and installation
 
-Python 3.11+, pipx, and Git (for installation from this Git repository).
-Install pipx using your platform's package manager or follow the
-[official pipx installation guide](https://pipx.pypa.io/stable/installation/).
-Run `pipx ensurepath` if its executable directory is not on your PATH.
+The application needs Python 3.11 or newer. The
+[NOAMi installer](https://github.com/numberformat/noami-installer) downloads the wheel
+attached to the latest published GitHub Release and installs it with pipx. It can
+bootstrap pipx if needed, so Git and a preinstalled pipx are not required. Run the
+installer with a Python 3.11+ interpreter that includes `venv`:
 
 ```bash
-pipx install "git+https://github.com/numberformat/ventoy-library.git"
+PIPX_DEFAULT_PYTHON="$(command -v python3)" python3 -c 'import urllib.request; exec(urllib.request.urlopen("https://numberformat.github.io/noami-installer/install.py").read())' ventoy-library
 ventoy-library --help
 ventoy-library --version
 ```
 
-Repository installation becomes available after the project is pushed to GitHub.
-For a local checkout: `pipx install .`. The application also supports
+If `python3` is older than 3.11, use the command for your newer interpreter, such as
+`python3.11`, in both places. `PIPX_DEFAULT_PYTHON` ensures an existing pipx uses that
+interpreter for the application environment. The installer requires a public release
+with exactly one wheel asset.
+On Windows PowerShell, use:
+
+```powershell
+$env:PIPX_DEFAULT_PYTHON = (py -3.11 -c 'import sys; print(sys.executable)')
+py -3.11 -c 'import urllib.request; exec(urllib.request.urlopen("https://numberformat.github.io/noami-installer/install.py").read())' ventoy-library
+```
+
+For a Git checkout, `pipx install "git+https://github.com/numberformat/ventoy-library.git"`
+remains an alternative; it requires Git and a separately installed pipx. For a local
+checkout, use `pipx install .`. The application also supports
 `python -m ventoy_library` within its Python environment.
+
+## Keep an installer on a Ventoy USB drive
+
+Copy [install-ventoy-library.sh](install-ventoy-library.sh) to the USB drive once.
+When you find the drive on a computer later, run the script to install or reinstall
+the application through pipx from this project's GitHub repository:
+
+```bash
+cd /Volumes/Ventoy
+sh install-ventoy-library.sh
+ventoy-library config set destination /Volumes/Ventoy
+```
+
+The script stays on the USB and invokes the NOAMi installer to install the latest
+published release wheel on the current computer. It needs Python 3.11+ and network
+access, but no Git, GitHub account, SSH setup, or preinstalled pipx. Set
+`VENTOY_LIBRARY_PYTHON=/path/to/python3.11` when the default `python3` is older.
+Run the USB script again to update a wheel installation.
 
 ## Application updates
 
@@ -70,9 +101,11 @@ Drafts and prereleases are excluded. If there are no published releases, stable
 Semantic Versioning tags are considered. An empty repository reports no release;
 network errors and unavailable repositories produce useful errors and exit nonzero.
 
-Self-update requires a positively identified, unsuffixed, unpinned pipx Git
-installation. Editable/development, local-path and other installations are rejected;
-update development checkouts yourself with Git. No automatic `git pull` is run.
+`--check-update` works for wheel and Git installations. `--update` currently requires
+a positively identified, unsuffixed, unpinned pipx Git installation. To update a
+NOAMi wheel installation, rerun the NOAMi installer or the USB script above.
+Editable/development installations are not automatically changed; update development
+checkouts yourself with Git. No automatic `git pull` is run.
 
 Plain `pipx upgrade ventoy-library` retains its recorded source, including a pinned
 Git tag. Self-update instead installs the checked stable tag explicitly through pipx:
@@ -84,13 +117,18 @@ pipx install --force "git+https://github.com/numberformat/ventoy-library.git@v0.
 
 This uses pipx's supported force-install mechanism and avoids updating to an
 unreleased default-branch commit. It requires confirmation unless `--yes` is passed.
-The application exits after pipx returns. See [research notes](docs/self-update.md).
+The application exits after pipx returns. See
+[research notes](docs/self-update.md).
 
 ## Configure and inspect a library
 
-Ventoy mode is the default. With no saved destination, the application detects mounted
-Ventoy data partitions. One detected drive is selected automatically; multiple drives
-produce a numbered choice. If detection fails, interactive commands ask for the
+Ventoy mode is the default. When the current directory is on a detected Ventoy data
+partition, the application uses that drive's root without asking, even if another
+destination was saved. This also works from a subdirectory on the drive. An explicit
+`--destination PATH` takes precedence. Otherwise, the app checks a saved destination,
+then searches all mounted partitions. One detected drive is selected automatically,
+including when a saved path is stale; multiple drives produce a numbered choice. If detection fails,
+interactive commands ask for the
 mounted data-partition path. An inconclusive installation requires explicit user
 confirmation. Noninteractive commands fail rather than guess.
 
@@ -104,7 +142,8 @@ ventoy-library check
 ventoy-library update-images --dry-run
 ```
 
-Detection uses operating-system partition metadata, including the sibling `VTOYEFI`
+Detection searches mounted partitions on Linux, Windows, and macOS using operating-system
+metadata, including the sibling `VTOYEFI`
 boot partition; a folder or volume named "Ventoy" alone is insufficient. The boot
 partition is never an image destination. Destinations must already exist and be mounted.
 Before acquisition, the application checks each image against Ventoy's search root,
@@ -141,13 +180,54 @@ ventoy-library config set destination_mode ventoy
 ```
 
 Directory mode does not promise that Ventoy can find the images. `--ventoy` and
-`--directory` override the saved mode; `--destination PATH` overrides the saved path.
+`--directory` override the saved mode; `--destination PATH` overrides current-directory
+detection and the saved path.
 Previously configured ordinary folders now require explicit directory mode.
 Configuration follows platform per-user conventions, outside the installed package.
-`list` shows the full numbered catalog offline, even without a mounted drive; with a
-configured destination it also shows installed versions. `status` lists managed files
-and storage. `check` queries providers. `check` and `--dry-run` never write configuration,
-state, locks or partial files.
+`list` shows only catalog entries whose download link passed a metadata-only HEAD
+check, even without a mounted drive. It shows
+catalog or installed versions, plus the catalog research date or installed download date
+when available. Fresh checks are cached for three days in
+`~/.noami.us/ventoy-library/availability.json` (under the user profile on Windows).
+After that, `list` checks the links again before displaying them. Use
+`list --refresh-links` to check again immediately. An unavailable link is hidden
+from the normal catalog; `check --downloads` reports failures for diagnosis.
+`status` lists managed files and storage. `check` queries providers.
+`check` and `--dry-run` never write configuration, state, locks or partial files.
+
+To check whether upstream image URLs respond without a USB drive or an image download:
+
+```bash
+ventoy-library check --downloads --only alpine
+ventoy-library check --downloads --only arch --only systemrescue
+ventoy-library check --downloads          # the entire catalog
+ventoy-library check --downloads --exclude kali
+ventoy-library check --downloads --exclude kali --url fedora=https://MIRROR/Fedora-Workstation.iso
+```
+
+This mode discovers current releases and sends **HEAD requests only** to the image URLs.
+It needs network access but no destination, mounted drive, or saved library state.
+It reports unreachable URLs, unsupported HEAD requests, and size mismatches, then
+lists every failed source again at the end. It cannot guarantee that a later full
+transfer will complete. Use `--only` or `--select NUMBERS` to narrow the check.
+Candidate snapshots and manual entries with catalog URLs are checked too. A manual
+entry may point to a ZIP, gzip, or bzip2 package rather than a bootable ISO; a successful
+HEAD request confirms only that the package URL responds. Entries without a catalog
+URL are listed as not testable automatically. Supply an alternate URL with repeatable
+`--url PROVIDER=URL`, or omit entries with repeatable `--exclude PROVIDER`. These options
+affect this check only; replace `MIRROR` with a verified source. The command exits
+nonzero when a source fails or is skipped.
+
+For a full release and storage dry run without a USB drive, use an existing ordinary
+folder as the destination:
+
+```bash
+mkdir -p ~/ventoy-library-preview
+ventoy-library update-images --dry-run --directory --destination ~/ventoy-library-preview --only alpine
+```
+
+The dry run creates no image files. Its storage figures describe that folder's
+filesystem, not the USB drive you may use later.
 
 ## Choose and add images
 
@@ -156,9 +236,12 @@ ventoy-library list
 ventoy-library add
 ```
 
-`add` displays the full scrollable catalog with numbers. Enter, for example,
+`add` displays the available catalog entries with their stable numbers. Enter, for example,
 `1,8,20,24` for Arch, SystemRescue, Ubuntu Server and Ubuntu Desktop; ranges such as
-`1-3,9` also work. Enter **0** (or `all`) for every image, or `q` to cancel.
+`1-3,9` also work when those entries are shown. Enter **0** (or `all`) for every
+available image, or `q` to cancel. `--all` also selects only available images.
+`--only` and `--select` let you explicitly choose an unlisted entry when providing
+your own image or investigating its source. `--refresh-links` forces a new link check.
 Invalid input is explained and prompted again. Nothing downloads until the selected
 images have been planned, available space checked, and the plan confirmed.
 
@@ -229,35 +312,34 @@ has been queried and the complete executable plan passes its space check.
 
 ## Image catalog and provider support
 
-The table describes the built-in registry. Manual catalog entries can also use a
-candidate YAML entries supply release snapshots without live discovery. Manual entries
-remain available for user-supplied files or URLs.
+The table describes the built-in registry. Candidate YAML entries supply release
+snapshots without live discovery. Manual entries accept user-supplied files or URLs.
 Official-source research and metadata fixtures for automatic providers are documented in
 [provider research](docs/providers.md).
 
 | # | Project | Category | Architecture | Runtime discovery | Catalog entry | Acquisition | Notes |
 |---|---|---|---|---|---|---|---|
 | 1 | Arch Linux | desktop | x86_64 | Yes | builtin | Automatic | Stable ISO |
-| 2 | Alpine Linux | desktop | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
-| 3 | Fedora Workstation | desktop | x86_64 | No | candidate | Manual source | Catalog URL unavailable |
-| 4 | Debian Live | desktop | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
+| 2 | Alpine Linux | desktop | x86_64 | Yes | builtin | Automatic | Standard ISO; SHA256 |
+| 3 | Fedora Workstation | desktop | x86_64 | No | candidate | Catalog URL | Fedora mirror selector; snapshot version |
+| 4 | Debian Live | desktop | x86_64 | Yes | builtin | Automatic | amd64 netinst ISO; SHA256 |
 | 5 | Linux Mint | desktop | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
 | 6 | Knoppix | desktop | x86_64 | No | candidate | Manual source | Catalog URL unavailable |
 | 7 | Tiny Core Linux | desktop | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
 | 8 | SystemRescue | rescue | x86_64 | Yes | builtin | Automatic | Stable ISO |
-| 9 | GParted Live | rescue | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
-| 10 | Clonezilla Live | rescue | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
-| 11 | Rescuezilla | rescue | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
+| 9 | GParted Live | rescue | x86_64 | Yes | builtin | Automatic | Stable ISO; SHA256 |
+| 10 | Clonezilla Live | rescue | x86_64 | Yes | builtin | Automatic | Stable ISO; unverified |
+| 11 | Rescuezilla | rescue | x86_64 | Yes | builtin | Automatic | Primary 64-bit ISO; SHA256 when published |
 | 12 | Hiren's BootCD PE | rescue | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
 | 13 | Memtest86+ | rescue | x86_64 | No | manual | Manual source | Archive needs special handling |
-| 14 | Kali Linux | security | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
+| 14 | Kali Linux | security | x86_64 | Yes | builtin | Automatic | Live ISO; SHA256; currently absent upstream |
 | 15 | Parrot Security | security | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
-| 16 | Tails | security | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
+| 16 | Tails | security | x86_64 | Yes | builtin | Automatic | Stable ISO; SHA256 |
 | 17 | OPNsense | network | x86_64 | No | manual | Manual source | Compressed ISO needs special handling |
 | 18 | OpenWrt x86-64 | network | x86_64 | No | manual | Manual source | Compressed disk image needs special handling |
 | 19 | OpenMediaVault | server | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
 | 20 | Ubuntu Server LTS | server | x86_64 | Yes | builtin | Automatic | Stable ISO |
-| 21 | FreeBSD | other | x86_64 | No | candidate | Catalog URL | Direct ISO URL; unverified |
+| 21 | FreeBSD | other | x86_64 | Yes | builtin | Automatic | Production disc1 ISO; SHA256 |
 | 22 | FreeDOS | other | x86 | No | manual | Manual source | Archive needs special handling |
 | 23 | ReactOS | other | x86 | No | manual | Manual source | Archive needs special handling |
 | 24 | Ubuntu Desktop LTS | desktop | x86_64 | Yes | builtin | Automatic | Stable ISO |
@@ -269,12 +351,8 @@ contains 24 projects, including Ubuntu Desktop alongside Ubuntu Server. x86-only
 ```text
 DESTINATION/
 ├── ISO/
-│   ├── desktop/PROVIDER/
-│   ├── rescue/PROVIDER/
-│   ├── security/PROVIDER/
-│   ├── network/PROVIDER/
-│   ├── server/PROVIDER/
-│   └── other/PROVIDER/
+│   ├── archlinux-YYYY.MM.DD-x86_64.iso
+│   └── ubuntu-YY.MM.P-desktop-amd64.iso
 └── .ventoy-library/
     ├── state.json
     ├── state.json.bak
@@ -286,8 +364,12 @@ source URL, expected bytes, checksum metadata, timestamp, verification and acqui
 method. State is serialized to a same-directory temporary file, flushed and fsynced,
 then atomically replaced. The previous valid state is retained as a backup. Recovery
 warns when using that backup and never silently resets a corrupted database.
-Keep-old records remain tracked. An interrupted transaction may leave an untracked
-completed file; it is preserved, never automatically adopted or deleted.
+Keep-old records remain tracked. New images are saved directly in `ISO/`. Existing
+managed images in older category/provider subfolders are moved to `ISO/` when selected
+for an update. If a top-level copy already exists, it must pass the upstream checksum
+before the tracked nested copy is removed. An untracked top-level image with a matching
+upstream checksum can be added to state without downloading it again. Untracked nested
+images are left untouched; move or import them explicitly.
 
 ## Storage and security
 
@@ -305,8 +387,8 @@ source/version/size/checksum; unverified downloads restart from zero. A server i
 Range causes a restart, while invalid Content-Range data is rejected.
 
 Safety checks reject filesystem roots, raw/special files, traversal, symlink paths,
-unsafe remote filenames and existing targets. Only tracked exact files in a provider's
-directory can be deleted, after the replacement is installed, recorded and rechecked.
+unsafe remote filenames and conflicting targets. Only tracked exact files can be deleted,
+after the replacement is installed, recorded and rechecked.
 There is no recursive deletion. Same-filename updates currently fail closed; providers
 should use versioned filenames. The destination and its parent directories must be
 trusted: the writer lock coordinates this application, not hostile processes racing
@@ -392,6 +474,11 @@ The version lives in `src/ventoy_library/metadata.py`; Hatch reads it for packag
 Runtime project/repository identity also lives there. Standard package metadata in
 `pyproject.toml` and documentation must be kept consistent; tests check packaging URLs.
 A `0.x` version signals an evolving interface. Update `CHANGELOG.md` before releasing.
+After committing the release contents, push a tag matching the package version (for
+example, `v0.1.0`). The [release workflow](.github/workflows/release.yml) builds one
+platform-independent wheel, checks its version and bundled catalog, and publishes a
+GitHub Release with that wheel attached. The NOAMi installer reads the latest published
+release; a tag alone or a wheel stored only in the repository is insufficient.
 
 ## License
 

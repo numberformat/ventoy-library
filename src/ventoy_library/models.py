@@ -9,6 +9,8 @@ from .safety import component
 
 class Action(StrEnum):
     CURRENT = "CURRENT"
+    RELOCATE = "RELOCATE"
+    ADOPT = "ADOPT"
     DOWNLOAD = "DOWNLOAD"
     UPDATE = "UPDATE"
     MANUAL = "MANUAL"
@@ -25,6 +27,7 @@ class AcquisitionMethod(StrEnum):
     AUTOMATIC = "automatic"
     LOCAL_FILE = "local-file"
     ALTERNATE_URL = "alternate-url"
+    EXISTING_FILE = "existing-file"
 
 
 def http_url(url: str) -> str:

@@ -129,7 +129,7 @@ def test_cli_refuses_hidden_plan_before_writes(drive, root, provider, monkeypatc
     monkeypatch.setattr(cli, "default_registry", lambda: registry)
     monkeypatch.setattr(cli.config, "load", Config)
     (root / ".ventoyignore").touch()
-    assert cli.main(["update-images", "--all", "--no-interactive"]) == 1
+    assert cli.main(["update-images", "--only", "example", "--no-interactive"]) == 1
     assert ".ventoyignore" in capsys.readouterr().err
     assert sorted(p.name for p in root.iterdir()) == [".ventoyignore"]
 
@@ -146,7 +146,7 @@ def test_visibility_rechecked_after_confirmation(drive, root, provider, monkeypa
         return "y"
 
     monkeypatch.setattr("builtins.input", confirm)
-    assert cli.main(["update-images", "--all"]) == 1
+    assert cli.main(["update-images", "--only", "example"]) == 1
     assert not (root / ".ventoy-library").exists()
     assert not (root / "ISO").exists()
 
@@ -220,7 +220,7 @@ def test_detected_drive_imports_with_default_buffer(drive, root, provider, monke
     source = root / "source.iso"
     source.write_bytes(b"abc")
     assert cli.main(["add", "--local", f"example={source}", "--no-interactive"]) == 0
-    assert (root / "ISO/rescue/example/example-1.iso").read_bytes() == b"abc"
+    assert (root / "ISO/example-1.iso").read_bytes() == b"abc"
     output = capsys.readouterr().out
     assert "2.0 GiB" in output
     assert "Ventoy image visibility: OK" in output
@@ -243,7 +243,7 @@ def test_unplug_during_transfer_never_installs(drive, root, provider, monkeypatc
 
     with pytest.raises(SafetyError, match="no longer mounted"):
         execute(plan, root, StateStore(root), Interrupted(), 0, target_guard=target)
-    assert not (root / "ISO/rescue/example/example-1.iso").exists()
+    assert not (root / "ISO/example-1.iso").exists()
     assert not (root / ".ventoy-library/state.json").exists()
 
 

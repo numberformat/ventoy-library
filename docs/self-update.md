@@ -25,6 +25,12 @@ Detection uses installed distribution metadata (`direct_url.json`) and the runni
 interpreter's `pipx_metadata.json`. Editable/local/non-pipx/suffixed/pinned/locked
 installations are refused. `pipx environment --value PIPX_LOCAL_VENVS` must match
 the running environment, preventing a different pipx installation from being modified.
+The USB can hold `install-ventoy-library.sh`, which invokes NOAMi Installer to install
+the latest published release wheel through pipx on the current computer. A pipx
+installation from a temporary wheel has no durable source URL for ordinary pipx
+upgrades; rerun the installer to replace it with the latest release. `--check-update`
+still reports whether a newer GitHub release exists, while `--update` remains limited
+to positively identified Git-based pipx installations.
 No live upgrade is run during development or tests; subprocess behavior is mocked.
 
 Checks paginate release metadata (bounded at 1,000 entries, failing if incomplete),
@@ -33,6 +39,6 @@ when there are no published releases. Invalid response shapes, API failures and 
 limits are failures, not “already up to date”. Tags must be stable X.Y.Z with optional v.
 
 Limitations: future pipx metadata schema changes fail closed; Windows self-replacement
-and actual released-package upgrade integration remain to validate. Force-install is a
-pipx operation, not an application-managed transactional rollback. Git tags must not
-be retargeted; signed application-release verification is not implemented.
+and actual released-package upgrade integration remain to validate. Updates are not
+transactionally rolled back if package installation fails. Git tags must not be
+retargeted; signed application-release verification is not implemented.

@@ -3,13 +3,15 @@
 `cli` orchestrates services and presentation. `models` contains immutable dataclasses
 and string enums; OS release versions are opaque strings (date-based versions are valid).
 `catalog` defines all 24 entries and their stable numeric order. `selection` displays
-the offline catalog and parses numeric lists/ranges/all. `list` stays read-only;
+only entries whose link passed an availability check and parses numeric lists/ranges/all.
+`availability_cache` stores three-day HEAD results under the user's
+`.noami.us/ventoy-library` directory. `list` does not write to the destination;
 `add` and `update-images` provide the interactive chooser. Manual source prompts
 finish before discovery/planning, and the writer lock is only acquired after confirmation.
 
-`providers` owns upstream-specific selection. Arch, SystemRescue, Ubuntu Server and
-Ubuntu Desktop have automatic adapters; remaining entries use a generic manual
-import adapter by default. The bundled `releases.yaml` supplies candidate release
+`providers` owns upstream-specific selection. Twelve entries have automatic adapters, including Arch, Alpine, Debian,
+SystemRescue, GParted, Clonezilla, Rescuezilla, Kali, Tails, Ubuntu Server,
+FreeBSD and Ubuntu Desktop; remaining entries use a generic manual import adapter. The bundled `releases.yaml` supplies candidate release
 snapshots for manual entries; `release_catalog` loads usable `candidate` records
 from the installed package and does not claim live discovery.
 `planner` asks every provider for a release, resolves acquisition overrides, and returns

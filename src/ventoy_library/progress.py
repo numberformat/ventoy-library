@@ -55,6 +55,6 @@ class Progress:
             else f" ({100 * self.offsets.get(key, 0) / size if size else 100:.1f}%)"
         )
         return (
-            f"{overall}\nCurrent: {key}: {format_bytes(self.offsets.get(key, 0))}"
+            f"{overall} | Current: {key}: {format_bytes(self.offsets.get(key, 0))}"
             f" / {format_bytes(size)}{file_percentage}"
         )

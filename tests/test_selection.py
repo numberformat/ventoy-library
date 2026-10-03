@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from ventoy_library import cli
-from ventoy_library.catalog import CATALOG
+from ventoy_library.catalog import BUILTIN_PROVIDER_NAMES, CATALOG
 from ventoy_library.config import Config
 from ventoy_library.errors import LibraryError
 from ventoy_library.models import Action
@@ -23,6 +23,10 @@ def catalog():
 @pytest.fixture(autouse=True)
 def config(root, monkeypatch):
     monkeypatch.setattr(cli.config, "load", lambda: Config(str(root), 0, "directory"))
+    # Selection tests exercise catalog choices, independent of link availability.
+    monkeypatch.setattr(
+        cli, "available_names", lambda providers, document, **kwargs: {p.name for p in providers}
+    )
 
 
 def terminal(monkeypatch, *answers):
@@ -35,12 +39,11 @@ def test_catalog_exact_requested_projects(catalog):
     assert len(catalog) == 24
     assert [p.name for p in catalog] == [entry.name for entry in CATALOG]
     assert not {"nixos", "windows11", "proxmox"} & {p.name for p in catalog}
-    assert {p.name for p in catalog if not p.manual} == {
-        "arch",
-        "systemrescue",
-        "ubuntu-server",
-        "ubuntu-desktop",
-    }
+    from ventoy_library.providers.snapshot import SnapshotProvider
+
+    assert {
+        p.name for p in catalog if not p.manual and not isinstance(p, SnapshotProvider)
+    } == BUILTIN_PROVIDER_NAMES
 
 
 @pytest.mark.parametrize(
@@ -69,7 +72,7 @@ def test_list_full_catalog_without_destination(monkeypatch, capsys):
     monkeypatch.setattr(cli.config, "load", lambda: Config())
     assert cli.main(["list"]) == 0
     text = capsys.readouterr().out
-    assert "24  Ubuntu Desktop LTS" in text and "  0  All images" in text
+    assert "24  Ubuntu Desktop LTS" in text and "  0  All available images" in text
     assert "  1  Arch Linux" in text and "  8  SystemRescue" in text
     assert "automatic" in text and "manual" in text
     assert "ventoy-library add" in text
@@ -98,11 +101,11 @@ def test_prompt_retry_and_cancel(catalog, monkeypatch, capsys):
 
 
 def test_manual_selection_local_and_skip(root, catalog, monkeypatch):
-    source = root / "alpine.iso"
+    source = root / "fedora.iso"
     source.write_bytes(b"abc")
     terminal(monkeypatch, "1", str(source), "3")
-    active, sources, skipped = cli.manual_choices([catalog[1], catalog[2]], {})
-    assert active == [catalog[1]] and skipped == ["fedora"]
+    active, sources, skipped = cli.manual_choices([catalog[2], catalog[4]], {})
+    assert active == [catalog[2]] and skipped == ["linux-mint"]
     plan = build_plan(active, root, [], sources)
     assert plan.total_bytes == 3
     assert plan.items[0].release.checksum is None
@@ -111,10 +114,10 @@ def test_manual_selection_local_and_skip(root, catalog, monkeypatch):
 
 def test_manual_direct_url(root, catalog):
     plan = build_plan(
-        [catalog[1]],
+        [catalog[2]],
         root,
         [],
-        {"alpine": "https://example.invalid/alpine.iso"},
+        {"fedora": "https://example.invalid/fedora.iso"},
         size_probe=lambda url: 42,
     )
     assert plan.total_bytes == 42
@@ -122,7 +125,7 @@ def test_manual_direct_url(root, catalog):
 
 
 def test_manual_without_source_is_honest(root, catalog):
-    plan = build_plan([catalog[1]], root, [])
+    plan = build_plan([catalog[2]], root, [])
     assert plan.items[0].action == Action.MANUAL
     assert plan.items[0].release is None
     assert plan.downloads == ()
@@ -141,27 +144,27 @@ def test_noninteractive_requires_selection(root, capsys):
 
 
 def test_selected_manual_image_imports_by_number(root, monkeypatch, capsys):
-    source = root / "alpine.iso"
+    source = root / "fedora.iso"
     source.write_bytes(b"abc")
-    terminal(monkeypatch, "2", "1", str(source), "y")
+    terminal(monkeypatch, "3", "1", str(source), "y")
     assert cli.main(["add"]) == 0
-    assert (root / "ISO/desktop/alpine/alpine.iso").read_bytes() == b"abc"
+    assert (root / "ISO/fedora.iso").read_bytes() == b"abc"
     assert StateStore(root).load()[0].verification_status == "unverified"
     assert "UNVERIFIED" in capsys.readouterr().out
 
 
 def test_numbered_local_noninteractive(root):
-    source = root / "alpine.iso"
+    source = root / "fedora.iso"
     source.write_bytes(b"abc")
-    assert cli.main(["add", "--select", "2", "--local", f"2={source}", "--no-interactive"]) == 0
-    assert (root / "ISO/desktop/alpine/alpine.iso").exists()
+    assert cli.main(["add", "--select", "3", "--local", f"3={source}", "--no-interactive"]) == 0
+    assert (root / "ISO/fedora.iso").exists()
 
 
 def test_numbered_dry_run_never_writes(root, capsys):
-    source = root / "alpine.iso"
+    source = root / "fedora.iso"
     source.write_bytes(b"abc")
     before = list(root.iterdir())
-    assert cli.main(["add", "--select", "2", "--local", f"2={source}", "--dry-run"]) == 0
+    assert cli.main(["add", "--select", "3", "--local", f"3={source}", "--dry-run"]) == 0
     assert list(root.iterdir()) == before
     assert "3.0 B" in capsys.readouterr().out
 

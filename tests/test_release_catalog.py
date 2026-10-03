@@ -24,15 +24,21 @@ def manifest():
     for entry in CATALOG:
         if entry.name in BUILTIN_PROVIDER_NAMES:
             images[entry.name] = {
-                "status": "builtin", "source_page": None,
-                "discovery_url": None, "notes": "Built-in discovery.",
+                "status": "builtin",
+                "source_page": None,
+                "discovery_url": None,
+                "notes": "Built-in discovery.",
             }
         else:
             images[entry.name] = {
-                "status": "manual", "source_page": None,
-                "discovery_url": None, "version": None,
-                "architecture": entry.architecture, "filename": None,
-                "url": None, "notes": "Research pending.",
+                "status": "manual",
+                "source_page": None,
+                "discovery_url": None,
+                "version": None,
+                "architecture": entry.architecture,
+                "filename": None,
+                "url": None,
+                "notes": "Research pending.",
             }
     return {"schema_version": 1, "researched_at": None, "images": images}
 
@@ -44,8 +50,8 @@ def candidate():
         "discovery_url": "https://example.invalid/releases",
         "version": "3.1.0",
         "architecture": "x86_64",
-        "filename": "alpine-3.1.0-x86_64.iso",
-        "url": "https://example.invalid/alpine.iso",
+        "filename": "TinyCorePure64-3.1.0.iso",
+        "url": "https://example.invalid/tinycore.iso",
         "notes": "Synthetic artifact for tests.",
     }
 
@@ -84,12 +90,12 @@ def test_builtin_entries_load_without_release_artifact_fields(tmp_path):
 
 def test_candidate_is_usable_without_size_checksum_or_review_metadata(tmp_path):
     data = manifest()
-    data["images"]["alpine"] = candidate()
-    release = load_catalog(write(tmp_path / "releases.yaml", data)).releases["alpine"]
+    data["images"]["tinycore"] = candidate()
+    release = load_catalog(write(tmp_path / "releases.yaml", data)).releases["tinycore"]
     assert release.version == "3.1.0"
-    assert release.filename == "alpine-3.1.0-x86_64.iso"
+    assert release.filename == "TinyCorePure64-3.1.0.iso"
     assert release.size is None and release.checksum is None
-    provider = default_registry({"alpine": release}).select(["alpine"])[0]
+    provider = default_registry({"tinycore": release}).select(["tinycore"])[0]
     assert provider.get_latest_release() == release
     plan = build_plan([provider], tmp_path, [])
     assert plan.items[0].action.value == "DOWNLOAD"
@@ -97,22 +103,22 @@ def test_candidate_is_usable_without_size_checksum_or_review_metadata(tmp_path):
 
 def test_manual_entry_accepts_null_release_fields(tmp_path):
     data = manifest()
-    data["images"]["alpine"].update({"version": None, "filename": None, "url": None})
-    assert "alpine" not in load_catalog(write(tmp_path / "releases.yaml", data)).releases
+    data["images"]["tinycore"].update({"version": None, "filename": None, "url": None})
+    assert "tinycore" not in load_catalog(write(tmp_path / "releases.yaml", data)).releases
 
 
 def test_removed_metadata_fields_are_not_accepted_as_schema(tmp_path):
     for field in REMOVED_FIELDS:
         data = manifest()
-        data["images"]["alpine"][field] = None
+        data["images"]["tinycore"][field] = None
         with pytest.raises(LibraryError, match="Invalid fields"):
             load_catalog(write(tmp_path / "releases.yaml", data))
 
 
 def test_catalog_structure_and_useful_validation_remain(tmp_path):
     data = manifest()
-    data["images"]["alpine"] = candidate()
-    data["images"]["alpine"]["url"] = "file:///tmp/alpine.iso"
+    data["images"]["tinycore"] = candidate()
+    data["images"]["tinycore"]["url"] = "file:///tmp/tinycore.iso"
     with pytest.raises(LibraryError, match=r"HTTP\(S\)"):
         load_catalog(write(tmp_path / "releases.yaml", data))
     data = manifest()
@@ -120,14 +126,34 @@ def test_catalog_structure_and_useful_validation_remain(tmp_path):
     with pytest.raises(LibraryError, match="Invalid status"):
         load_catalog(write(tmp_path / "releases.yaml", data))
     data = manifest()
-    data["images"]["alpine"] = candidate()
-    data["images"]["alpine"]["status"] = "ready"
+    data["images"]["tinycore"] = candidate()
+    data["images"]["tinycore"]["status"] = "ready"
     with pytest.raises(LibraryError, match="Invalid status"):
         load_catalog(write(tmp_path / "releases.yaml", data))
 
 
 def test_registry_retains_builtin_providers():
     registry = default_registry()
-    assert [p.name for p in registry.select(
-        ["arch", "systemrescue", "ubuntu-server", "ubuntu-desktop"]
-    )] == ["arch", "systemrescue", "ubuntu-server", "ubuntu-desktop"]
+    assert [
+        p.name for p in registry.select(["arch", "systemrescue", "ubuntu-server", "ubuntu-desktop"])
+    ] == ["arch", "systemrescue", "ubuntu-server", "ubuntu-desktop"]
+
+
+def test_all_builtin_entries_match_runtime_registry():
+    from ventoy_library.providers.manual import ManualProvider
+    from ventoy_library.providers.snapshot import SnapshotProvider
+
+    bundled = yaml.safe_load(files("ventoy_library").joinpath("releases.yaml").read_text())
+    document = load_bundled_catalog()
+    registry = default_registry(document.releases)
+    actual = {
+        p.name for p in registry.select() if not isinstance(p, (ManualProvider, SnapshotProvider))
+    }
+    assert len(actual) == 12
+    assert actual == BUILTIN_PROVIDER_NAMES
+    assert not (actual & document.releases.keys())
+    for name in actual:
+        assert set(bundled["images"][name]) == {"status", "source_page", "discovery_url", "notes"}
+        assert bundled["images"][name]["status"] == "builtin"
+    assert isinstance(registry.select(["tinycore"])[0], SnapshotProvider)
+    assert isinstance(registry.select(["memtest86plus"])[0], ManualProvider)

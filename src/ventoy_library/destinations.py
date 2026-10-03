@@ -8,7 +8,7 @@ from .errors import LibraryError, SafetyError
 from .models import Action, Plan
 from .safety import destination
 from .ventoy import read_config, validate_image
-from .volumes import SUPPORTED_FILESYSTEMS, Inventory, Volume, scan_volumes
+from .volumes import SUPPORTED_FILESYSTEMS, Inventory, Volume, scan_volumes, ventoy_boot_partition
 
 
 def mounted_root(path: Path) -> Path:
@@ -23,9 +23,20 @@ def containing_volume(path: Path, volumes: tuple[Volume, ...]) -> Volume | None:
     return max(matches, key=lambda v: len(v.mountpoint.parts), default=None)
 
 
+def current_ventoy_root(inventory: Inventory | None = None) -> Path | None:
+    """Return the detected Ventoy data-partition root containing the current directory."""
+    inventory = inventory if inventory is not None else scan_volumes()
+    try:
+        current = Path.cwd().resolve(strict=True)
+    except OSError:
+        return None
+    volume = containing_volume(current, inventory.detected)
+    return volume.mountpoint if volume else None
+
+
 def reject_boot_partition(path: Path, inventory: Inventory) -> None:
     volume = containing_volume(path, inventory.volumes)
-    boot_disks = {v.disk for v in inventory.volumes if v.label.upper() == "VTOYEFI"}
+    boot_disks = {v.disk for v in inventory.volumes if ventoy_boot_partition(v)}
     if (
         volume
         and (
@@ -62,7 +73,9 @@ class Target:
         self.check_mount()
         config = read_config(self.volume_root) if self.ventoy else None
         for item in plan.items:
-            if item.action not in {Action.DOWNLOAD, Action.UPDATE, Action.CURRENT}:
+            if item.action not in {
+                Action.DOWNLOAD, Action.UPDATE, Action.CURRENT, Action.RELOCATE, Action.ADOPT
+            }:
                 continue
             target = item.destination
             if not target.is_relative_to(self.root):
@@ -104,7 +117,11 @@ def make_target(path: Path, volume: Volume | None, *, ventoy: bool) -> Target:
 
 
 def resolve_target(
-    chosen: str | Path | None, *, mode: str = "ventoy", interactive: bool = False
+    chosen: str | Path | None,
+    *,
+    mode: str = "ventoy",
+    interactive: bool = False,
+    prefer_current_directory: bool = False,
 ) -> Target | None:
     """No persistent writes; q cancels. Only an explicit mode permits ordinary folders."""
     inventory = scan_volumes()
@@ -119,6 +136,12 @@ def resolve_target(
     if inventory.warning:
         print(inventory.warning)
     detected = inventory.detected
+    if prefer_current_directory:
+        current_root = current_ventoy_root(inventory)
+        if current_root is not None:
+            volume = containing_volume(current_root, detected)
+            print(f"Using Ventoy data partition containing current directory: {current_root}")
+            return make_target(current_root, volume, ventoy=True)
     if chosen:
         try:
             root = destination(chosen)
@@ -127,14 +150,21 @@ def resolve_target(
             if volume:
                 return make_target(root, volume, ventoy=True)
         except (LibraryError, OSError) as exc:
-            if not interactive:
+            if not interactive and not prefer_current_directory:
                 raise
-            print(f"Configured destination unavailable: {exc}")
+            label = "Saved" if prefer_current_directory else "Configured"
+            print(f"{label} destination unavailable: {exc}")
+        if prefer_current_directory and len(detected) == 1:
+            volume = detected[0]
+            print(f"Using detected Ventoy data partition: {volume.mountpoint}")
+            return make_target(volume.mountpoint, volume, ventoy=True)
         if not interactive:
-            raise SafetyError(
-                "Destination is not on a detected Ventoy data partition. "
-                "Run interactively to identify its mounted data partition."
+            message = (
+                "Multiple Ventoy data partitions found"
+                if len(detected) > 1 and prefer_current_directory
+                else "Destination is not on a detected Ventoy data partition"
             )
+            raise SafetyError(f"{message}. Specify --destination PATH, or run interactively.")
         print(f"Could not identify {chosen} as a Ventoy data partition.")
     elif len(detected) == 1:
         volume = detected[0]

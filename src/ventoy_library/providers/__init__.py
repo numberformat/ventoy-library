@@ -16,16 +16,22 @@ class Registry:
             raise LibraryError(f"Duplicate provider: {provider.name}")
         self._providers[provider.name] = provider
 
-    def add_snapshots(self, snapshots: dict) -> None:
+    def add_snapshots(self, snapshots: dict, researched_at=None, versions=None) -> None:
         """Replace catalog-managed manual adapters with usable candidate snapshots."""
         from ..catalog import CATALOG
         from .snapshot import SnapshotProvider
 
         entries = {entry.name: entry for entry in CATALOG}
+        for name, provider in self._providers.items():
+            provider.catalog_version = (versions or {}).get(name)
+            provider.researched_at = researched_at
         for name, release in snapshots.items():
             if name not in entries or name in self._providers and not self._providers[name].manual:
                 raise LibraryError(f"Cannot apply a release snapshot to provider {name}.")
-            self._providers[name] = SnapshotProvider(entries[name], release)
+            provider = SnapshotProvider(entries[name], release)
+            provider.catalog_version = release.version
+            provider.researched_at = researched_at
+            self._providers[name] = provider
 
     def select(self, names: list[str] | None = None) -> list[Provider]:
         if not names:
@@ -38,17 +44,33 @@ class Registry:
 
 def default_registry(snapshots=None) -> Registry:
     from ..catalog import CATALOG
+    from .alpine import AlpineProvider
     from .arch import ArchProvider
+    from .clonezilla import ClonezillaProvider
+    from .debian import DebianProvider
+    from .freebsd import FreeBSDProvider
+    from .gparted import GPartedProvider
+    from .kali import KaliProvider
     from .manual import ManualProvider
+    from .rescuezilla import RescuezillaProvider
     from .snapshot import SnapshotProvider
     from .systemrescue import SystemRescueProvider
+    from .tails import TailsProvider
     from .ubuntu import UbuntuServerProvider
     from .ubuntu_desktop import UbuntuDesktopProvider
 
     automatic = {
         "arch": ArchProvider,
+        "alpine": AlpineProvider,
+        "debian": DebianProvider,
         "systemrescue": SystemRescueProvider,
+        "gparted": GPartedProvider,
+        "clonezilla": ClonezillaProvider,
+        "rescuezilla": RescuezillaProvider,
+        "kali": KaliProvider,
+        "tails": TailsProvider,
         "ubuntu-server": UbuntuServerProvider,
+        "freebsd": FreeBSDProvider,
         "ubuntu-desktop": UbuntuDesktopProvider,
     }
     registry = Registry()

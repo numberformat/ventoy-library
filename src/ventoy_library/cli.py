@@ -2,16 +2,20 @@ import argparse
 import json
 import logging
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
+import httpx
+
 from . import app_update, config
-from .destinations import resolve_target
+from .availability import check_download
+from .availability_cache import available_names
+from .destinations import current_ventoy_root, resolve_target
 from .downloader import HTTPDownloader, http_client
 from .errors import LibraryError
 from .library import execute
 from .metadata import PROJECT_NAME, __version__
-from .models import Action, Plan, PlannedDownload
+from .models import Action, Plan, PlannedDownload, http_url
 from .planner import build_plan
 from .progress import format_bytes
 from .providers import default_registry
@@ -35,7 +39,7 @@ def parser() -> argparse.ArgumentParser:
         "--check-update", action="store_true", help="check application releases"
     )
     application.add_argument(
-        "--update", action="store_true", help="update application through pipx"
+        "--update", action="store_true", help="update application from its GitHub repository"
     )
     cli.add_argument("--yes", action="store_true", help="confirm an application update")
     cli.add_argument("-v", "--verbose", action="count", default=0)
@@ -76,11 +80,30 @@ def parser() -> argparse.ArgumentParser:
         selection.add_argument(
             "--only", action="append", help="provider ID; repeat to select several"
         )
+        if name != "status":
+            sub.add_argument(
+                "--refresh-links",
+                action="store_true",
+                help="recheck image links now instead of using the three-day cache",
+            )
         if name in {"check", "add", "update-images"}:
             selection.add_argument(
                 "--select", metavar="NUMBERS", help="catalog numbers, e.g. 1,3,9-11; 0 selects all"
             )
-            selection.add_argument("--all", action="store_true", help="select the entire catalog")
+            selection.add_argument("--all", action="store_true", help="select all available images")
+        if name == "check":
+            sub.add_argument(
+                "--downloads",
+                action="store_true",
+                help="check image URLs with HEAD requests; no destination or image download",
+            )
+            sub.add_argument(
+                "--exclude", action="append", metavar="PROVIDER", help="omit a provider from checks"
+            )
+            sub.add_argument(
+                "--url", action="append", default=[], metavar="PROVIDER=URL",
+                help="probe an alternate HTTP(S) URL for one provider",
+            )
         sub.add_argument("-v", "--verbose", action="count", default=argparse.SUPPRESS)
         if name in {"add", "update-images"}:
             sub.add_argument("--dry-run", action="store_true")
@@ -94,12 +117,13 @@ def parser() -> argparse.ArgumentParser:
     return cli
 
 
-def overrides(values: list[str]) -> dict[str, str]:
+def overrides(values: list[str], option: str = "--local") -> dict[str, str]:
     result = {}
     for value in values:
         key, sep, source = value.partition("=")
         if not key or not sep or not source or key in result:
-            raise LibraryError("Use each --local PROVIDER=PATH_OR_URL exactly once.")
+            value_hint = "URL" if option == "--url" else "PATH_OR_URL"
+            raise LibraryError(f"Use each {option} PROVIDER={value_hint} exactly once.")
         result[key] = source
     return result
 
@@ -164,12 +188,26 @@ def show_plan(plan: Plan, keep_old: bool = False) -> None:
             f"{format_bytes(release.size if release else None):14} {item.action}"
         )
         if release:
-            print(f"  File: {release.filename}\n  Source: {item.source or 'manual required'}")
+            print(f"  File: {release.filename}\n  Destination: {item.destination}")
+            source = (
+                "existing local image"
+                if item.action in {Action.RELOCATE, Action.ADOPT}
+                else item.source or "manual required"
+            )
+            print(f"  Source: {source}")
             if release.checksum is None:
                 print("  No authoritative checksum available; installation will be UNVERIFIED.")
+        if item.action == Action.RELOCATE:
+            print("  Existing managed image will move to ISO/ after verification.")
+        if item.action == Action.ADOPT:
+            print("  Existing top-level image will be checked before adding it to state.")
         if item.reason:
             print(f"  {item.reason}")
-        if item.action == Action.UPDATE and item.installed and not keep_old:
+        if (
+            item.action in {Action.UPDATE, Action.RELOCATE, Action.ADOPT}
+            and item.installed
+            and not keep_old
+        ):
             print(f"  Remove after successful replacement: {item.installed.relative_path}")
     print(f"Downloads: {len(plan.downloads)}; download size: {format_bytes(plan.total_bytes)}")
     if any(i.action in {Action.MANUAL, Action.ERROR} for i in plan.items):
@@ -198,6 +236,81 @@ def application_update(args) -> int:
     return app_update.run_update(command)
 
 
+def check_downloads(args, catalog, registry, document) -> int:
+    """Check advertised artifacts without selecting a drive or writing library state."""
+    if args.only:
+        providers = registry.select(args.only)
+    elif args.select is not None:
+        providers = select_numbers(args.select, catalog)
+    else:
+        providers = catalog
+    excluded = {p.name for p in registry.select(args.exclude)} if args.exclude else set()
+    providers = [p for p in providers if p.name not in excluded]
+    urls = overrides(args.url, "--url")
+    for url in urls.values():
+        http_url(url)
+    unknown = urls.keys() - {p.name for p in providers}
+    if unknown:
+        raise LibraryError(
+            f"URL overrides refer to unselected providers: {', '.join(sorted(unknown))}"
+        )
+    failures: list[tuple[str, str]] = []
+    skipped: list[str] = []
+    available = 0
+    print(
+        f"Checking {len(providers)} image sources with HEAD requests; "
+        "no image files will be downloaded."
+    )
+    with http_client() as client:
+        for provider in providers:
+            try:
+                if provider.manual:
+                    release = (document.manual_sources or {}).get(provider.name)
+                    if release is None and provider.name in urls:
+                        release = provider.release_from_source(urls[provider.name])
+                    if release is None:
+                        print(f"{provider.name}: SKIPPED (no catalog or supplied URL)")
+                        skipped.append(provider.name)
+                        continue
+                else:
+                    release = provider.get_latest_release()
+                if (
+                    release.provider != provider.name
+                    or release.category != provider.category
+                    or release.architecture != provider.architecture
+                ):
+                    raise LibraryError("Provider returned mismatched release identity.")
+                if provider.name in urls:
+                    release = replace(release, url=urls[provider.name])
+                result = check_download(client, release)
+            except (LibraryError, httpx.HTTPError, OSError, ValueError) as exc:
+                print(f"{provider.name}: UNAVAILABLE ({exc})")
+                failures.append((provider.name, str(exc)))
+                continue
+            if not result.available:
+                failures.append((provider.name, result.detail))
+            else:
+                available += 1
+            label = "AVAILABLE" if result.available else "UNAVAILABLE"
+            kind = "manual package" if provider.manual else "image"
+            print(
+                f"{provider.name}: {label} | {kind} {release.filename} | "
+                f"version {release.version} | "
+                f"{format_bytes(result.size)} | {result.detail} | {release.url or '-'}"
+            )
+    print(
+        f"Availability check complete: {available} available, "
+        f"{len(failures)} unavailable, {len(skipped)} skipped."
+    )
+    if failures:
+        print("Failed image sources:")
+        for name, reason in failures:
+            print(f"  {name}: {reason}")
+    if skipped:
+        print("Not testable automatically: " + ", ".join(skipped))
+    return int(bool(failures or skipped))
+
+
 def run(args) -> int:
     if args.check_update or args.update:
         if args.command:
@@ -205,6 +318,8 @@ def run(args) -> int:
         return application_update(args)
     if args.yes:
         raise LibraryError("--yes applies only to --update.")
+    if args.command == "check" and (args.exclude or args.url) and not args.downloads:
+        raise LibraryError("--exclude and --url require check --downloads.")
     if args.command == "config":
         cfg = (
             config.set_value(args.key, args.value)
@@ -217,16 +332,21 @@ def run(args) -> int:
     catalog_path = getattr(args, "release_catalog", None) or cfg.release_catalog
     document = load_catalog(Path(catalog_path)) if catalog_path else load_bundled_catalog()
     registry = default_registry()
-    if document.releases:
-        registry.add_snapshots(document.releases)
+    if document.releases or document.versions or document.researched_at:
+        registry.add_snapshots(document.releases, document.researched_at, document.versions)
     catalog = registry.select()
     if document.releases:
         print(
             f"Release catalog loaded ({len(document.releases)} candidate snapshots)"
         )
+    if args.command == "check" and args.downloads:
+        return check_downloads(args, catalog, registry, document)
+    mode = args.destination_mode or cfg.destination_mode
     chosen = args.destination or cfg.destination
-    # Catalog listing remains offline and never requires a mounted drive or prompts.
+    # Listing needs no mounted drive or prompt; link checks use a per-user cache.
     if args.command == "list":
+        if args.destination is None and mode == "ventoy":
+            chosen = current_ventoy_root() or chosen
         images = []
         if chosen:
             try:
@@ -236,13 +356,24 @@ def run(args) -> int:
                 print(f"Installed status unavailable: {exc}")
         if args.only:
             registry.select(args.only)
-        show_catalog(catalog, images, names=args.only)
+        visible = available_names(
+            registry.select(args.only) if args.only else catalog,
+            document,
+            refresh=args.refresh_links,
+        )
+        show_catalog(catalog, images, names=args.only, visible_names=visible)
+        if not visible:
+            print(
+                "No image links could be confirmed. "
+                "Check your connection or use --refresh-links."
+            )
         print("Run 'ventoy-library add' to choose images and check storage before downloading.")
         return 0
     target_guard = resolve_target(
         chosen,
-        mode=args.destination_mode or cfg.destination_mode,
+        mode=mode,
         interactive=sys.stdin.isatty() and not getattr(args, "no_interactive", False),
+        prefer_current_directory=args.destination is None,
     )
     if target_guard is None:
         print("Cancelled.")
@@ -289,18 +420,26 @@ def run(args) -> int:
     elif args.select is not None:
         providers = select_numbers(args.select, catalog)
     elif args.all:
-        providers = catalog
+        visible = available_names(catalog, document, refresh=args.refresh_links)
+        providers = [provider for provider in catalog if provider.name in visible]
     elif manual:
         providers = registry.select(list(manual))
     elif args.command in {"add", "update-images"} and not args.dry_run:
         if args.no_interactive or not sys.stdin.isatty():
             raise LibraryError("Choose images with --select NUMBERS, --all, --only, or --local.")
-        providers = prompt_selection(catalog, images)
+        visible = available_names(catalog, document, refresh=args.refresh_links)
+        if not visible:
+            raise LibraryError(
+                "No image links could be confirmed. "
+                "Check your connection or use --only with a local file."
+            )
+        providers = prompt_selection(catalog, images, visible_names=visible)
         if not providers:
             print("Cancelled.")
             return 0
     else:
-        providers = catalog
+        visible = available_names(catalog, document, refresh=args.refresh_links)
+        providers = [provider for provider in catalog if provider.name in visible]
     if manual.keys() - {p.name for p in providers}:
         raise LibraryError("Manual overrides must name selected providers.")
     skipped = []
@@ -336,7 +475,12 @@ def run(args) -> int:
         errors = sum(i.action in {Action.ERROR, Action.MANUAL} for i in plan.items)
         if args.command == "check" or args.dry_run:
             return int(bool(errors or report.shortfall or plan.unknown_sizes))
-        if not plan.downloads:
+        changes = [
+            i
+            for i in plan.items
+            if i.action in {Action.DOWNLOAD, Action.UPDATE, Action.RELOCATE, Action.ADOPT}
+        ]
+        if not changes:
             return int(bool(errors))
         report.require_safe()
         if not args.no_interactive:
@@ -345,7 +489,9 @@ def run(args) -> int:
                     "Use --no-interactive to authorize downloads without a terminal."
                 )
             if input(
-                f"Proceed with {format_bytes(plan.total_bytes)} of downloads? [Y/n] "
+                f"Proceed with {format_bytes(plan.total_bytes)} of downloads "
+                f"and {sum(i.action in {Action.RELOCATE, Action.ADOPT} for i in changes)} "
+                "existing-file changes? [Y/n] "
             ).lower() not in {"", "y", "yes"}:
                 print("Cancelled.")
                 return 0

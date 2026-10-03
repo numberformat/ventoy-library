@@ -3,6 +3,7 @@
 import os
 import re
 from dataclasses import dataclass
+from datetime import date
 from importlib.resources import as_file, files
 from pathlib import Path
 
@@ -55,9 +56,23 @@ def optional_url(value, field: str) -> None:
             raise LibraryError(f"{field}: {exc}") from exc
 
 
+def catalog_date(value) -> date | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        raise LibraryError("researched_at must be a quoted YYYY-MM-DD date or null.")
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise LibraryError("researched_at is not a valid date.") from exc
+
+
 @dataclass(frozen=True)
 class CatalogDocument:
     releases: dict[str, Release]
+    researched_at: date | None = None
+    versions: dict[str, str] | None = None
+    manual_sources: dict[str, Release] | None = None
 
 
 def load_catalog(path: Path) -> CatalogDocument:
@@ -76,8 +91,7 @@ def load_catalog(path: Path) -> CatalogDocument:
         raise LibraryError("Release catalog requires schema_version, researched_at and images.")
     if type(data["schema_version"]) is not int or data["schema_version"] != 1:
         raise LibraryError("Unsupported release catalog schema version.")
-    if data["researched_at"] is not None and not isinstance(data["researched_at"], str):
-        raise LibraryError("researched_at must be a string or null.")
+    researched_at = catalog_date(data["researched_at"])
     entries = data["images"]
     expected = {entry.name for entry in CATALOG}
     if not isinstance(entries, dict) or set(entries) != expected:
@@ -89,6 +103,8 @@ def load_catalog(path: Path) -> CatalogDocument:
             f"unknown: {', '.join(sorted(extra)) or '-'}."
         )
     releases = {}
+    versions = {}
+    manual_sources = {}
     for catalog_entry in CATALOG:
         name = catalog_entry.name
         item = entries[name]
@@ -100,7 +116,12 @@ def load_catalog(path: Path) -> CatalogDocument:
         )
         if not isinstance(status, str) or status not in allowed:
             raise LibraryError(f"Invalid status for {name}: {status!r}.")
-        if status == "builtin" and set(item) - {"status", "source_page", "discovery_url", "notes"}:
+        if status == "builtin" and set(item) - {
+            "status",
+            "source_page",
+            "discovery_url",
+            "notes",
+        }:
             raise LibraryError(f"Invalid builtin entry structure for {name}.")
         optional_url(item.get("source_page"), f"{name}.source_page")
         optional_url(item.get("discovery_url"), f"{name}.discovery_url")
@@ -113,9 +134,25 @@ def load_catalog(path: Path) -> CatalogDocument:
         architecture = item.get("architecture")
         if architecture is not None and architecture != catalog_entry.architecture:
             raise LibraryError(f"{name}.architecture differs from the catalog.")
-        if status == "manual":
-            continue
         version = item.get("version")
+        if version is not None:
+            if not isinstance(version, str) or not version.strip():
+                raise LibraryError(f"{name}.version must be a nonempty string or null.")
+            versions[name] = version
+        if status == "manual":
+            filename = item.get("filename")
+            url = item.get("url")
+            if isinstance(version, str) and isinstance(filename, str) and url:
+                manual_sources[name] = Release(
+                    name,
+                    catalog_entry.display_name,
+                    version,
+                    catalog_entry.category,
+                    catalog_entry.architecture,
+                    filename,
+                    url,
+                )
+            continue
         filename = item.get("filename")
         if (
             not isinstance(version, str)
@@ -136,7 +173,7 @@ def load_catalog(path: Path) -> CatalogDocument:
             filename,
             item.get("url"),
         )
-    return CatalogDocument(releases)
+    return CatalogDocument(releases, researched_at, versions, manual_sources)
 
 
 def load_bundled_catalog() -> CatalogDocument:

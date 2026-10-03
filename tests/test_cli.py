@@ -8,6 +8,7 @@ from ventoy_library import cli
 from ventoy_library.config import Config
 from ventoy_library.metadata import PROJECT_NAME, REPOSITORY_URL
 from ventoy_library.providers import Registry
+from ventoy_library.state import StateStore
 
 
 @pytest.fixture(autouse=True)
@@ -59,7 +60,7 @@ def test_dry_run_no_mutation(root, provider, monkeypatch, capsys):
     registry.register(provider)
     monkeypatch.setattr(cli, "default_registry", lambda: registry)
     monkeypatch.setattr(cli.config, "load", lambda: Config(str(root), 0, "directory"))
-    assert cli.main(["update-images", "--dry-run"]) == 0
+    assert cli.main(["update-images", "--dry-run", "--only", "example"]) == 0
     assert list(root.iterdir()) == []
     text = capsys.readouterr().out
     assert "example-1.iso" in text and "https://example.invalid/image.iso" in text
@@ -74,7 +75,29 @@ def test_local_cli_end_to_end(root, provider, monkeypatch):
     source = root / "local.iso"
     source.write_bytes(b"abc")
     assert cli.main(["update-images", "--no-interactive", "--local", f"example={source}"]) == 0
-    assert (root / "ISO/rescue/example/example-1.iso").read_bytes() == b"abc"
+    assert (root / "ISO/example-1.iso").read_bytes() == b"abc"
+
+
+def test_cli_reconciles_existing_top_level_duplicate_without_download(
+    root, provider, record, monkeypatch
+):
+    registry = Registry()
+    registry.register(provider)
+    monkeypatch.setattr(cli, "default_registry", lambda: registry)
+    monkeypatch.setattr(cli.config, "load", lambda: Config(str(root), 0, "directory"))
+    old = root / record.relative_path
+    old.parent.mkdir(parents=True)
+    old.write_bytes(b"abc")
+    top = root / "ISO" / record.filename
+    top.write_bytes(b"abc")
+    store = StateStore(root)
+    store.save([record])
+    assert cli.main(["update-images", "--only", "example", "--dry-run"]) == 0
+    assert old.is_file() and top.is_file() and store.load() == [record]
+    assert cli.main(["update-images", "--only", "example", "--no-interactive"]) == 0
+    assert not old.exists()
+    assert top.read_bytes() == b"abc"
+    assert store.load()[0].relative_path == "ISO/example-1.iso"
 
 
 def test_metadata_consistency():

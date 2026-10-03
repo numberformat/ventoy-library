@@ -101,8 +101,40 @@ def test_plan(root, provider, record):
     target = contained(root, record.relative_path)
     target.parent.mkdir(parents=True)
     target.write_bytes(b"abc")
-    assert build_plan([provider], root, [record]).items[0].action == Action.CURRENT
+    assert build_plan([provider], root, [record]).items[0].action == Action.RELOCATE
+    # An untracked nested file is never taken over or deleted automatically.
+    assert build_plan([provider], root, []).items[0].action == Action.DOWNLOAD
+
+
+def test_flat_existing_image_is_adopted_only_with_checksum(root, provider, release):
+    target = root / "ISO" / release.filename
+    target.parent.mkdir()
+    target.write_bytes(b"abc")
+    assert build_plan([provider], root, []).items[0].action == Action.ADOPT
+    provider.get_latest_release = lambda: replace(release, checksum=None, checksum_algorithm=None)
     assert build_plan([provider], root, []).items[0].action == Action.ERROR
+
+
+def test_flat_managed_image_is_current(root, provider, record):
+    flat = replace(record, relative_path=f"ISO/{record.filename}")
+    path = root / flat.relative_path
+    path.parent.mkdir()
+    path.write_bytes(b"abc")
+    StateStore(root).save([flat])
+    assert build_plan([provider], root, [flat]).items[0].action == Action.CURRENT
+
+
+def test_flat_filename_collision_is_rejected_case_insensitively(root, provider, release):
+    class Second:
+        name = "second"
+        category = release.category
+        architecture = release.architecture
+
+        def get_latest_release(self):
+            return replace(release, provider="second", filename=release.filename.upper())
+
+    plan = build_plan([provider, Second()], root, [])
+    assert [item.action for item in plan.items] == [Action.DOWNLOAD, Action.ERROR]
 
 
 def test_plan_unknown_and_probe(root, provider, release):

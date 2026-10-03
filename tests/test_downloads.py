@@ -7,6 +7,7 @@ import pytest
 from ventoy_library.downloader import HTTPDownloader, import_local
 from ventoy_library.errors import LibraryError, SafetyError
 from ventoy_library.library import execute
+from ventoy_library.models import Action
 from ventoy_library.planner import build_plan
 from ventoy_library.state import StateStore
 
@@ -269,3 +270,53 @@ def test_verification_failure_preserves_old_image(root, provider, record):
     assert path.read_bytes() == b"old"
     assert store.load() == [old]
     assert not plan.items[0].destination.exists()
+
+
+def test_tracked_nested_image_moves_to_top_without_download(root, provider, record):
+    old = root / record.relative_path
+    old.parent.mkdir(parents=True)
+    old.write_bytes(b"abc")
+    store = StateStore(root)
+    store.save([record])
+    plan = build_plan([provider], root, store.load())
+    assert plan.items[0].action == Action.RELOCATE
+    assert not plan.downloads
+    with httpx.Client(transport=httpx.MockTransport(lambda req: pytest.fail("no HTTP"))) as c:
+        with store.lock():
+            execute(plan, root, store, HTTPDownloader(c), 0)
+    assert not old.exists()
+    assert (root / "ISO/example-1.iso").read_bytes() == b"abc"
+    assert store.load()[0].relative_path == "ISO/example-1.iso"
+
+
+def test_duplicate_top_level_image_is_verified_then_nested_copy_removed(root, provider, record):
+    old = root / record.relative_path
+    old.parent.mkdir(parents=True)
+    old.write_bytes(b"abc")
+    top = root / "ISO/example-1.iso"
+    top.write_bytes(b"abc")
+    store = StateStore(root)
+    store.save([record])
+    plan = build_plan([provider], root, store.load())
+    with httpx.Client(transport=httpx.MockTransport(lambda req: pytest.fail("no HTTP"))) as c:
+        with store.lock():
+            execute(plan, root, store, HTTPDownloader(c), 0)
+    assert not old.exists()
+    assert top.read_bytes() == b"abc"
+    assert [image.relative_path for image in store.load()] == ["ISO/example-1.iso"]
+
+
+def test_mismatched_duplicate_preserves_both_files_and_state(root, provider, record):
+    old = root / record.relative_path
+    old.parent.mkdir(parents=True)
+    old.write_bytes(b"abc")
+    top = root / "ISO/example-1.iso"
+    top.write_bytes(b"bad")
+    store = StateStore(root)
+    store.save([record])
+    plan = build_plan([provider], root, store.load())
+    with httpx.Client(transport=httpx.MockTransport(lambda req: pytest.fail("no HTTP"))) as c:
+        with store.lock(), pytest.raises(LibraryError, match="Checksum mismatch"):
+            execute(plan, root, store, HTTPDownloader(c), 0)
+    assert old.read_bytes() == b"abc" and top.read_bytes() == b"bad"
+    assert store.load() == [record]
