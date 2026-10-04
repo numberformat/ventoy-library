@@ -124,11 +124,25 @@ def test_application_check_is_read_only(monkeypatch, capsys):
 def test_application_update_exits(monkeypatch):
     from packaging.version import Version
 
-    monkeypatch.setattr(
-        cli.app_update, "latest_release", lambda c: cli.app_update.stable_tag("v0.2.0")
+    release = cli.app_update.AppRelease(
+        "v0.2.0",
+        Version("0.2.0"),
+        "ventoy_library-0.2.0-py3-none-any.whl",
+        "https://github.com/numberformat/ventoy-library/releases/download/v0.2.0/ventoy_library-0.2.0-py3-none-any.whl",
+        100,
+        "sha256:" + "a" * 64,
     )
+    monkeypatch.setattr(cli.app_update, "latest_release", lambda c: release)
     monkeypatch.setattr(cli.app_update, "installed_version", lambda: Version("0.1.0"))
-    monkeypatch.setattr(cli.app_update, "update_command", lambda r: ["pipx", "test"])
+    monkeypatch.setattr(cli.app_update, "update_executable", lambda r: "pipx")
+    monkeypatch.setattr(
+        cli.app_update,
+        "download_release_wheel",
+        lambda c, r, directory: directory / r.wheel_name,
+    )
+    monkeypatch.setattr(
+        cli.app_update, "update_command", lambda executable, wheel: [executable, str(wheel)]
+    )
     monkeypatch.setattr(cli.app_update, "run_update", lambda c: 9)
     assert cli.main(["--update", "--yes"]) == 9
 
