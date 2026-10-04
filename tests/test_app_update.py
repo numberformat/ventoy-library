@@ -97,6 +97,10 @@ def test_installation_detection(root):
     metadata = {"main_package": {"package": PROJECT_NAME, "package_or_url": GIT_SOURCE}}
     (root / "pipx_metadata.json").write_text(json.dumps(metadata))
     assert app_update.installation_kind(root, {}) == "pipx"
+    wheel_name = "ventoy_library-0.1.0-py3-none-any.whl"
+    metadata["main_package"]["package_or_url"] = str(root / wheel_name)
+    (root / "pipx_metadata.json").write_text(json.dumps(metadata))
+    assert app_update.installation_kind(root, {"url": (root / wheel_name).as_uri()}) == "pipx"
     metadata["main_package"]["suffix"] = "-test"
     (root / "pipx_metadata.json").write_text(json.dumps(metadata))
     assert app_update.installation_kind(root, {}) == "unsupported"
@@ -115,8 +119,17 @@ def test_update_command_and_run(root, monkeypatch):
         return subprocess.CompletedProcess(command, 0, stdout=str(root) + "\n")
 
     monkeypatch.setattr(app_update.subprocess, "run", run)
-    command = app_update.update_command(app_update.stable_tag("v0.2.0"))
-    assert command == ["/bin/pipx", "install", "--force", GIT_SOURCE + "@v0.2.0"]
+    release = app_update.AppRelease(
+        "v0.2.0",
+        Version("0.2.0"),
+        "ventoy_library-0.2.0-py3-none-any.whl",
+        "https://github.com/numberformat/ventoy-library/releases/download/v0.2.0/ventoy_library-0.2.0-py3-none-any.whl",
+        100,
+        "sha256:" + "a" * 64,
+    )
+    executable = app_update.update_executable(release)
+    command = app_update.update_command(executable, root / release.wheel_name)
+    assert command == ["/bin/pipx", "install", "--force", str(root / release.wheel_name)]
     assert len(calls) == 1  # Detection is read-only.
     assert app_update.run_update(command) == 0
     assert calls[-1] == command
@@ -125,8 +138,16 @@ def test_update_command_and_run(root, monkeypatch):
 @pytest.mark.parametrize("kind", ["development", "unsupported"])
 def test_unsupported_update(kind, monkeypatch):
     monkeypatch.setattr(app_update, "installation_kind", lambda: kind)
+    release = app_update.AppRelease(
+        "v1.0.0",
+        Version("1.0.0"),
+        "ventoy_library-1.0.0-py3-none-any.whl",
+        "https://github.com/numberformat/ventoy-library/releases/download/v1.0.0/ventoy_library-1.0.0-py3-none-any.whl",
+        100,
+        "sha256:" + "a" * 64,
+    )
     with pytest.raises(LibraryError):
-        app_update.update_command(app_update.stable_tag("v1.0.0"))
+        app_update.update_executable(release)
 
 
 def test_mismatched_pipx_environment(root, monkeypatch):
@@ -137,8 +158,16 @@ def test_mismatched_pipx_environment(root, monkeypatch):
         "run",
         lambda *a, **kw: subprocess.CompletedProcess(a, 0, stdout=str(root)),
     )
+    release = app_update.AppRelease(
+        "v1.0.0",
+        Version("1.0.0"),
+        "ventoy_library-1.0.0-py3-none-any.whl",
+        "https://github.com/numberformat/ventoy-library/releases/download/v1.0.0/ventoy_library-1.0.0-py3-none-any.whl",
+        100,
+        "sha256:" + "a" * 64,
+    )
     with pytest.raises(LibraryError, match="does not manage"):
-        app_update.update_command(app_update.stable_tag("v1.0.0"))
+        app_update.update_executable(release)
 
 
 @pytest.mark.parametrize("data", [{"dir_info": None}, {"url": 42}, []])

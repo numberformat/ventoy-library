@@ -1,5 +1,6 @@
 """Stable GitHub release checks and explicit pipx-managed application replacement."""
 
+import hashlib
 import json
 import re
 import shutil
@@ -8,18 +9,23 @@ import sys
 from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 import httpx
 from packaging.version import InvalidVersion, Version
 
 from .errors import LibraryError
-from .metadata import GIT_SOURCE, PROJECT_NAME, REPOSITORY, __version__
+from .metadata import GIT_SOURCE, PROJECT_NAME, REPOSITORY, REPOSITORY_URL, __version__
 
 
 @dataclass(frozen=True)
 class AppRelease:
     tag: str
     version: Version
+    wheel_name: str | None = None
+    wheel_url: str | None = None
+    wheel_size: int | None = None
+    wheel_digest: str | None = None
 
 
 def installed_version() -> Version:
@@ -75,7 +81,30 @@ def latest_release(client: httpx.Client) -> AppRelease | None:
                 raise LibraryError("Malformed GitHub release metadata.")
             if not row["draft"] and not row["prerelease"]:
                 if candidate := stable_tag(row["tag_name"]):
-                    candidates.append(candidate)
+                    assets = row.get("assets", [])
+                    if not isinstance(assets, list):
+                        raise LibraryError("Malformed GitHub release assets.")
+                    wheels = [
+                        asset
+                        for asset in assets
+                        if isinstance(asset, dict)
+                        and isinstance(asset.get("name"), str)
+                        and asset["name"].endswith(".whl")
+                    ]
+                    if len(wheels) == 1:
+                        asset = wheels[0]
+                        candidates.append(
+                            AppRelease(
+                                candidate.tag,
+                                candidate.version,
+                                asset.get("name"),
+                                asset.get("browser_download_url"),
+                                asset.get("size"),
+                                asset.get("digest"),
+                            )
+                        )
+                    else:
+                        candidates.append(candidate)
         # Tags are a fallback only when the repository has no published releases.
         if not releases:
             for row in pages("tags"):
@@ -108,8 +137,6 @@ def installation_kind(prefix: Path | None = None, direct_url: dict | None = None
         return "unsupported"
     if dir_info.get("editable"):
         return "development"
-    if url.startswith("file:"):
-        return "unsupported"
     try:
         data = json.loads((prefix / "pipx_metadata.json").read_text(encoding="utf-8"))
         package = data["main_package"]
@@ -118,13 +145,20 @@ def installation_kind(prefix: Path | None = None, direct_url: dict | None = None
         source = package.get("package_or_url")
         if not isinstance(source, str):
             return "unsupported"
+        source_is_git = source == GIT_SOURCE or source.startswith(GIT_SOURCE + "@")
+        source_name = Path(unquote(urlparse(source).path)).name
+        wheel_pattern = r"ventoy_library-\d+\.\d+\.\d+-py3-none-any\.whl"
+        source_is_wheel = re.fullmatch(wheel_pattern, source_name) is not None
+        direct_name = Path(unquote(urlparse(url).path)).name
+        if url.startswith("file:") and (not source_is_wheel or direct_name != source_name):
+            return "unsupported"
         if (
             package["package"] == PROJECT_NAME
             and not package.get("suffix")
             and not package.get("pinned")
             and not package.get("lock_file")
             and "--editable" not in package.get("pip_args", [])
-            and (source == GIT_SOURCE or source.startswith(GIT_SOURCE + "@"))
+            and (source_is_git or source_is_wheel)
         ):
             return "pipx"
     except (OSError, ValueError, TypeError, KeyError):
@@ -132,9 +166,20 @@ def installation_kind(prefix: Path | None = None, direct_url: dict | None = None
     return "unsupported"
 
 
-def update_command(release: AppRelease) -> list[str]:
-    if stable_tag(release.tag) != release:
+def update_executable(release: AppRelease) -> str:
+    stable = stable_tag(release.tag)
+    if stable is None or stable.version != release.version:
         raise LibraryError("Invalid stable application release.")
+    expected_name = f"ventoy_library-{release.version}-py3-none-any.whl"
+    expected_url = f"{REPOSITORY_URL}/releases/download/{release.tag}/{expected_name}"
+    if release.wheel_name != expected_name or release.wheel_url != expected_url:
+        raise LibraryError("The latest GitHub Release has no matching application wheel.")
+    if type(release.wheel_size) is not int or not 0 < release.wheel_size <= 100 * 1024 * 1024:
+        raise LibraryError("The GitHub Release wheel has an invalid size.")
+    if not isinstance(release.wheel_digest, str) or not re.fullmatch(
+        r"sha256:[0-9a-fA-F]{64}", release.wheel_digest
+    ):
+        raise LibraryError("The GitHub Release wheel has no valid SHA-256 digest.")
     kind = installation_kind()
     if kind == "development":
         raise LibraryError(
@@ -142,10 +187,7 @@ def update_command(release: AppRelease) -> list[str]:
             "application updates are disabled. Update this checkout using Git instead."
         )
     if kind != "pipx":
-        raise LibraryError(
-            "Automatic --update requires an unsuffixed, unpinned pipx Git installation. "
-            "For a NOAMi Installer wheel installation, rerun the installer instead."
-        )
+        raise LibraryError("Automatic --update requires an unsuffixed, unpinned pipx installation.")
     executable = shutil.which("pipx")
     if not executable:
         raise LibraryError("pipx is unavailable on PATH; update pipx and retry.")
@@ -163,7 +205,38 @@ def update_command(release: AppRelease) -> list[str]:
     expected = Path(result.stdout.strip()) / PROJECT_NAME
     if expected.resolve() != Path(sys.prefix).resolve():
         raise LibraryError("pipx on PATH does not manage the running application environment.")
-    return [executable, "install", "--force", f"{GIT_SOURCE}@{release.tag}"]
+    return executable
+
+
+def download_release_wheel(client: httpx.Client, release: AppRelease, directory: Path) -> Path:
+    """Stream the published wheel and verify its GitHub asset digest before pipx runs."""
+    wheel = directory / release.wheel_name
+    digest = hashlib.sha256()
+    received = 0
+    try:
+        with client.stream("GET", release.wheel_url) as response:
+            response.raise_for_status()
+            with wheel.open("wb") as output:
+                for chunk in response.iter_bytes():
+                    received += len(chunk)
+                    if received > release.wheel_size:
+                        raise LibraryError("Release wheel exceeds its published size.")
+                    digest.update(chunk)
+                    output.write(chunk)
+    except httpx.HTTPError as exc:
+        raise LibraryError("Could not download the application release wheel.") from exc
+    except OSError as exc:
+        raise LibraryError("Could not save the application release wheel.") from exc
+    if (
+        received != release.wheel_size
+        or digest.hexdigest().lower() != release.wheel_digest[7:].lower()
+    ):
+        raise LibraryError("Release wheel size or SHA-256 digest does not match GitHub metadata.")
+    return wheel
+
+
+def update_command(executable: str, wheel: Path) -> list[str]:
+    return [executable, "install", "--force", str(wheel)]
 
 
 def run_update(command: list[str]) -> int:

@@ -4,6 +4,11 @@ Notable changes follow a simple Keep a Changelog style and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+- Application `--update` now downloads the latest GitHub Release wheel, verifies
+  its SHA-256 digest, and installs it with pipx. pipx wheel installations can
+  update themselves without Git.
+
 ## [0.1.0] - 2026-10-03
 
 ### Changed

@@ -85,7 +85,9 @@ The script stays on the USB and invokes the NOAMi installer to install the lates
 published release wheel on the current computer. It needs Python 3.11+ and network
 access, but no Git, GitHub account, SSH setup, or preinstalled pipx. Set
 `VENTOY_LIBRARY_PYTHON=/path/to/python3.11` when the default `python3` is older.
-Run the USB script again to update a wheel installation.
+Starting with the next release after v0.1.0, `ventoy-library --update` can install
+later release wheels. For a v0.1.0 wheel installation, run the USB script once more
+after that release is published.
 
 ## Application updates
 
@@ -101,22 +103,16 @@ Drafts and prereleases are excluded. If there are no published releases, stable
 Semantic Versioning tags are considered. An empty repository reports no release;
 network errors and unavailable repositories produce useful errors and exit nonzero.
 
-`--check-update` works for wheel and Git installations. `--update` currently requires
-a positively identified, unsuffixed, unpinned pipx Git installation. To update a
-NOAMi wheel installation, rerun the NOAMi installer or the USB script above.
+`--check-update` works for wheel and Git installations. `--update` supports
+positively identified, unsuffixed, unpinned pipx installations from either source.
+It downloads the latest published release wheel, verifies its size and GitHub
+SHA-256 digest, then installs it through pipx. Git is not needed for this update.
 Editable/development installations are not automatically changed; update development
 checkouts yourself with Git. No automatic `git pull` is run.
 
 Plain `pipx upgrade ventoy-library` retains its recorded source, including a pinned
-Git tag. Self-update instead installs the checked stable tag explicitly through pipx:
-
-```bash
-# Example only: substitute an existing stable release tag.
-pipx install --force "git+https://github.com/numberformat/ventoy-library.git@v0.1.0"
-```
-
-This uses pipx's supported force-install mechanism and avoids updating to an
-unreleased default-branch commit. It requires confirmation unless `--yes` is passed.
+Git tag or a temporary local wheel path. Self-update uses pipx's force-install
+mechanism with the downloaded release wheel. It requires confirmation unless `--yes` is passed.
 The application exits after pipx returns. See
 [research notes](docs/self-update.md).
 

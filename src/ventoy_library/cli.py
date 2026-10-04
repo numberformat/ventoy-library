@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import sys
+import tempfile
 from dataclasses import asdict, replace
 from pathlib import Path
 
@@ -39,7 +40,7 @@ def parser() -> argparse.ArgumentParser:
         "--check-update", action="store_true", help="check application releases"
     )
     application.add_argument(
-        "--update", action="store_true", help="update application from its GitHub repository"
+        "--update", action="store_true", help="update application from its GitHub Release wheel"
     )
     cli.add_argument("--yes", action="store_true", help="confirm an application update")
     cli.add_argument("-v", "--verbose", action="count", default=0)
@@ -226,14 +227,17 @@ def application_update(args) -> int:
     print("Application update available.")
     if not args.update:
         return 0
-    command = app_update.update_command(release)
-    print("Command: " + " ".join(command))
+    executable = app_update.update_executable(release)
+    print(f"Release wheel: {release.wheel_name}")
     if not args.yes:
         if not sys.stdin.isatty():
             raise LibraryError("Application update needs confirmation; use --update --yes.")
         if input("Update the application? [y/N] ").strip().lower() not in {"y", "yes"}:
             return 0
-    return app_update.run_update(command)
+    with tempfile.TemporaryDirectory(prefix="ventoy-library-update-") as temp_dir:
+        with http_client() as client:
+            wheel = app_update.download_release_wheel(client, release, Path(temp_dir))
+        return app_update.run_update(app_update.update_command(executable, wheel))
 
 
 def check_downloads(args, catalog, registry, document) -> int:
